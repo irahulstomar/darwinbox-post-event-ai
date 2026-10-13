@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "name": "When called by MASTER",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -200
+      ],
+      "id": "80a987e0-6c47-547d-a14e-c663fb401f1c"
+    }
+  ],
+  "connections": {}
+}

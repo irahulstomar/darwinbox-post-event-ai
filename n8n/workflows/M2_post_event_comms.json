@@ -1,0 +1,601 @@
+{
+  "name": "M2 · Post-event communications (transcript → DeepSeek → HubSpot emails)",
+  "nodes": [
+    {
+      "name": "Event closed form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "4c885429-70b8-5dab-bf1a-acadcc32be7d",
+      "parameters": {
+        "formTitle": "Event closed: send post-event emails",
+        "formDescription": "Transcribes the recording (Deepgram), then generates and sends 3 segment emails through HubSpot (attendees, no-shows, speakers) with fact-checked takeaways, persona and industry personalisation, A/B/C subject lines and UTM tracking.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Event name",
+              "placeholder": "Darwinbox Cortex and the AI-Native Era of HCM",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Recording file URL",
+              "placeholder": "Direct mp3/mp4/m4a link (Zoom/ON24 download URL). Transcribed by Deepgram"
+            },
+            {
+              "fieldLabel": "Watch link for emails",
+              "placeholder": "Page people click to watch (e.g. YouTube / on-demand page)",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "CTA link",
+              "placeholder": "https://... (demo / resource page)"
+            },
+            {
+              "fieldLabel": "Transcript (.txt), optional fallback",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".txt"
+            },
+            {
+              "fieldLabel": "From name",
+              "placeholder": "Webinar Team"
+            },
+            {
+              "fieldLabel": "Reply-to email",
+              "fieldType": "email"
+            },
+            {
+              "fieldLabel": "Mode",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Send now via HubSpot"
+                  },
+                  {
+                    "option": "Create drafts only"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64473db4-3d53-59fe-9dc0-06339387193d"
+    },
+    {
+      "name": "Read inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Read the \"Event closed\" form. Transcript upload is optional: without it, the recording file is transcribed by Deepgram.\n\nconst f = $input.first();\nconst binKey = Object.keys(f.binary || {})[0];\nconst uploaded = binKey ? (await this.helpers.getBinaryDataBuffer(0, binKey)).toString('utf8').trim() : '';\nconst recordingFile = (f.json['Recording file URL'] || '').trim();\nif (!uploaded && !recordingFile) throw new Error('Give a recording file URL (mp3/mp4/m4a) or upload a transcript');\nconst event = (f.json['Event name'] || '').trim();\nconst slug = event.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);\n\nreturn [{ json: {\n  event, slug, runId: 'm2-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12),\n  uploaded_transcript: uploaded, recording_file_url: recordingFile,\n  recording_url: (f.json['Watch link for emails'] || recordingFile).trim(),\n  cta_url: (f.json['CTA link'] || '').trim(),\n  from_name: (f.json['From name'] || 'Webinar Team').trim(),\n  reply_to: (f.json['Reply-to email'] || '').trim(),\n  mode: String(f.json['Mode'] || '').toLowerCase().startsWith('send') ? 'send' : 'draft',\n  utm_campaign: `${slug}-postevent`,\n} }];\n"
+      },
+      "id": "24f71488-c7f7-5ce6-8863-8ff2b209c51c"
+    },
+    {
+      "name": "Event contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit: 200, properties: 'firstname,lastname,jobtitle,company,country,event_attendance_status,time_in_session_min,questions_asked,job_function,seniority,company_industry,icp_tier'.split(','), filterGroups: [{ filters: [{ propertyName: 'event_name', operator: 'EQ', value: $json.event }] }] }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "f610c320-fe8f-5f34-84bc-41a71a1354e9"
+    },
+    {
+      "name": "Prepare transcription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Decide how to get the transcript and build the Deepgram request.\n// Keyterm prompting with the event + speaker names fixes brand/name spellings (e.g. \"Darwinbox\", \"Jayant\").\n\nconst inp = $('Read inputs').first().json;\nconst contacts = $input.all().flatMap(i => i.json.results || []).map(r => ({ id: r.id, ...r.properties }));\nconst speakers = contacts.filter(c => c.event_attendance_status === 'speaker');\nconst terms = [...new Set([\n  ...speakers.flatMap(s => [s.firstname, s.lastname, s.company]),\n  ...inp.event.split(/[^A-Za-z0-9-]+/).filter(w => /^[A-Z]/.test(w) && w.length > 3),\n].filter(Boolean))].slice(0, 20);\nconst needDeepgram = !inp.uploaded_transcript;\n// (n8n's Code sandbox has no URL/URLSearchParams, so build the query string by hand)\nconst params = ['model=nova-3', 'diarize=true', 'paragraphs=true', 'smart_format=true', 'punctuate=true', 'language=en',\n  ...terms.map(t => 'keyterm=' + encodeURIComponent(t))].join('&');\n\nreturn [{ json: {\n  contacts, need_deepgram: needDeepgram, keyterms: terms,\n  // Without a recording to transcribe, call a harmless Deepgram endpoint instead (keeps the flow branch-free).\n  dg_method: needDeepgram ? 'POST' : 'GET',\n  dg_url: needDeepgram ? `https://api.deepgram.com/v1/listen?${params}` : 'https://api.deepgram.com/v1/projects',\n  dg_body: needDeepgram ? { url: inp.recording_file_url } : {},\n} }];\n"
+      },
+      "id": "8896fa57-6713-5c2c-924c-6b269decddb9"
+    },
+    {
+      "name": "Deepgram transcribe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "method": "={{ $json.dg_method }}",
+        "url": "={{ $json.dg_url }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.dg_body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "5927cf24-523d-551f-b01e-dda239d82379"
+    },
+    {
+      "name": "Format transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Turn Deepgram's paragraphs into \"[mm:ss] Speaker N: text\" lines (or pass the uploaded transcript through).\n\nconst inp = $('Read inputs').first().json;\nconst prep = $('Prepare transcription').first().json;\nlet transcript = inp.uploaded_transcript, source = 'uploaded transcript', duration = null;\nif (prep.need_deepgram) {\n  const alt = $json.results?.channels?.[0]?.alternatives?.[0];\n  if (!alt) throw new Error('Deepgram returned no transcript: ' + JSON.stringify($json).slice(0, 300));\n  const mmss = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;\n  transcript = (alt.paragraphs?.paragraphs || []).map(p => `[${mmss(p.start)}] Speaker ${p.speaker}: ${p.sentences.map(s => s.text).join(' ')}`).join('\\n');\n  source = `Deepgram nova-3 (diarized, keyterms: ${prep.keyterms.join(', ')})`;\n  duration = Math.round($json.metadata?.duration || 0);\n}\nreturn [{ json: { transcript, source, duration_s: duration, chars: transcript.length } }];\n"
+      },
+      "id": "bbc409c9-a49a-5aec-8d42-694f6636aeab"
+    },
+    {
+      "name": "Build insight prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Build the DeepSeek request that pulls takeaways + verbatim quotes out of the transcript.\n\nconst inp = $('Read inputs').first().json;\nconst contacts = $('Prepare transcription').first().json.contacts;\nconst transcript = $('Format transcript').first().json.transcript;\nconst speakers = contacts.filter(c => c.event_attendance_status === 'speaker')\n  .map(c => `${c.firstname} ${c.lastname} (${c.jobtitle || ''}, ${c.company || ''})`);\n\nconst system = `You analyse a webinar transcript for post-event marketing.\nThe transcript lines look like \"[mm:ss] Speaker N: text\". Diarization labels are anonymous; map them to the real speakers listed.\nReturn ONLY valid JSON (inside string values never use the \" character; use ' instead):\n{\n \"speaker_map\": { \"Speaker 0\": \"Full Name\", ... },\n \"event_summary\": \"2 sentences on what the session covered\",\n \"one_line_hook\": \"why someone who missed it should watch, max 25 words\",\n \"takeaways\": [\n   { \"headline\": \"max 12 words\", \"detail\": \"1-2 sentences, faithful to what was said\",\n     \"timestamp\": \"mm:ss\", \"speaker\": \"Full Name\", \"quote\": \"VERBATIM from the transcript, 10-35 words\" }\n ],\n \"best_quote_by_speaker\": { \"Full Name\": { \"quote\": \"VERBATIM, 10-35 words\", \"timestamp\": \"mm:ss\" } }\n}\nRules:\n- Give exactly 5 takeaways, most valuable first, spread across the session.\n- Quotes must be copied word for word from the transcript (you may cut at word boundaries; never paraphrase or fix grammar).\n- Do not invent numbers, customers or claims that are not in the transcript.`;\n\nreturn [{ json: {\n  contacts, speakers,\n  request_body: {\n    model: 'deepseek-v4-pro', thinking: { type: 'disabled' }, temperature: 0.2, max_tokens: 4000,\n    response_format: { type: 'json_object' },\n    messages: [\n      { role: 'system', content: system },\n      { role: 'user', content: `Event: ${inp.event}\\nSpeakers: ${speakers.join('; ')}\\n\\nTRANSCRIPT:\\n${transcript}` },\n    ],\n  },\n} }];\n"
+      },
+      "id": "af1d9431-0680-5e81-8807-d4bb098d6b6a"
+    },
+    {
+      "name": "DeepSeek: extract insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request_body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "b3e579e7-3d2c-5de7-930f-8bc7989ab3f9"
+    },
+    {
+      "name": "Fact guard + copy prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Fact-guard the extracted quotes, compute the speaker performance snapshot,\n// work out which personas/industries are in the audience, and build the copywriting request.\n\nconst inp = $('Read inputs').first().json;\nconst prev = $('Build insight prompt').first().json;\nconst contacts = prev.contacts;\n\n// Tolerant JSON parse of a DeepSeek reply: strips ``` fences and repairs the two common breakages\n// (raw line breaks and stray double quotes inside string values) with a small character scanner.\nconst parseAI = (resp, what) => {\n  const c = resp && resp.choices && resp.choices[0];\n  if (!c) throw new Error(`${what}: DeepSeek returned no answer: ${JSON.stringify(resp).slice(0, 300)}`);\n  const t = String((c.message && c.message.content) || '').trim().replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '');\n  const raw = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);\n  try { return JSON.parse(raw); } catch (e1) {}\n  // common LLM slips: bare hashtags in arrays, trailing commas\n  const raw2 = raw.replace(/([\\[,]\\s*)(#[A-Za-z0-9_]+)\"?(?=\\s*[,\\]])/g, '$1\"$2\"')   // bare hashtags\n    .replace(/,(\\s*[}\\]])/g, '$1');                                                    // trailing commas\n  try { return JSON.parse(raw2); } catch (e2) {}\n  let out = '', inStr = false;\n  for (let i = 0; i < raw2.length; i++) {\n    const ch = raw2[i];\n    if (!inStr) { out += ch; if (ch === '\"') inStr = true; continue; }\n    if (ch === '\\\\') { out += ch + (raw2[i + 1] || ''); i++; continue; }\n    if (ch === '\\n') { out += '\\\\n'; continue; }\n    if (ch === '\\r' || ch === '\\t') { out += ch === '\\t' ? '\\\\t' : ''; continue; }\n    if (ch === '\"') {\n      let j = i + 1; while (j < raw2.length && /\\s/.test(raw2[j])) j++;\n      if (j >= raw2.length || ',}]:'.includes(raw2[j])) { out += ch; inStr = false; } else out += '\\\\\"';\n      continue;\n    }\n    out += ch;\n  }\n  try { return JSON.parse(out); }\n  catch (e) { throw new Error(`${what}: invalid JSON (finish_reason=${c.finish_reason}, ${t.length} chars). Starts: ${t.slice(0, 160)}`); }\n};\nconst ins = parseAI($json, 'Insight extraction');\n\n// ---------- fact guard: every quote must exist word-for-word in the transcript ----------\nconst norm = s => String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst T = norm($('Format transcript').first().json.transcript);\nconst checked = (ins.takeaways || []).map(t => ({ ...t, quote_verified: !!t.quote && T.includes(norm(t.quote)) }));\nconst takeaways = checked.filter(t => t.quote_verified).slice(0, 3);\nconst rejected = checked.filter(t => !t.quote_verified).map(t => ({ headline: t.headline, quote: t.quote }));\nif (takeaways.length < 3) throw new Error(`Only ${takeaways.length} takeaways passed the fact guard; refusing to write emails from unverified quotes`);\nconst bestQuotes = {};\nfor (const [name, q] of Object.entries(ins.best_quote_by_speaker || {}))\n  if (q && T.includes(norm(q.quote))) bestQuotes[name] = q;\n\n// ---------- performance snapshot (computed, never generated) ----------\nconst audience = contacts.filter(c => c.event_attendance_status !== 'speaker');\nconst attended = audience.filter(c => c.event_attendance_status === 'attended');\nconst pct = (a, b) => (b ? Math.round(100 * a / b) : 0);\nconst count = (arr, k) => arr.reduce((m, c) => (c[k] ? (m[c[k]] = (m[c[k]] || 0) + 1, m) : m), {});\nconst top = (m, n) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k);\nconst stats = {\n  registrants: audience.length,\n  attendees: attended.length,\n  attendance_rate_pct: pct(attended.length, audience.length),\n  avg_minutes: Math.round(attended.reduce((s, c) => s + Number(c.time_in_session_min || 0), 0) / (attended.length || 1)),\n  stayed_30_plus_pct: pct(attended.filter(c => Number(c.time_in_session_min) >= 30).length, attended.length),\n  questions: attended.reduce((s, c) => s + Number(c.questions_asked || 0), 0),\n  director_plus_pct: pct(attended.filter(c => ['C-level', 'VP', 'Director'].includes(c.seniority)).length, attended.length),\n  companies: new Set(audience.map(c => (c.company || '').toLowerCase())).size,\n  countries: new Set(audience.map(c => c.country).filter(Boolean)).size,\n  top_industries: top(count(audience, 'company_industry'), 3),\n};\n\n// ---------- personas in the audience ----------\nconst personaOf = c => {\n  const fn = c.job_function, sen = c.seniority;\n  if (['HRIS', 'IT'].includes(fn)) return 'hr_tech';\n  if (['Talent Acquisition', 'L&D'].includes(fn)) return 'talent';\n  if (['Finance', 'Operations'].includes(fn)) return 'finance_ops';\n  if (['HR', 'Leadership', 'Total Rewards'].includes(fn)) return ['C-level', 'VP', 'Director'].includes(sen) ? 'hr_leader' : 'hr_practitioner';\n  return 'other';\n};\nconst industries = top(count(audience, 'company_industry'), 8);\n\nconst system = `You write post-webinar emails for an enterprise HR-tech company. Audience: HR leaders and HR tech owners.\nTone: warm, specific, concise, no hype, no emojis. Never use placeholders except {first_name} in subject lines.\nUse ONLY the facts provided. Do not invent numbers, customers or features. No URLs (links are added later).\nDescribe the event only as what it was (a webinar conversation); never call it a launch, keynote or announcement unless the summary says so.\nAny number you use must keep its exact meaning from the takeaways or stats (e.g. if a speaker says \"four pillars\", never write \"3 pillars\").\nAvoid numbers in subject lines unless they come straight from the stats.\nReturn ONLY valid JSON (inside string values never use the \" character; use ' instead):\n{\n \"takeaway_snippets\": [\"max 20 words, one per takeaway, same order: the so-what for an HR leader; must NOT repeat the headline\"],\n \"attendee\": { \"subjects\": [\"3 distinct subject lines, max 60 chars\"], \"preview\": \"max 90 chars\",\n               \"intro\": \"thank them for attending, 1-2 sentences\", \"takeaways_lead\": \"short lead-in to the 3 takeaways\",\n               \"recording_line\": \"1 sentence inviting them to rewatch or share the recording\", \"cta_line\": \"1 sentence leading to the CTA\",\n               \"cta_text\": \"2-5 word button text\", \"closing\": \"1 sentence\" },\n \"no_show\": { same keys as attendee; the intro is a friendly 'sorry we missed you' catch-up and the recording is the main CTA },\n \"speaker\": { \"subjects\": [\"3 lines, max 60 chars\"], \"preview\": \"max 90 chars\", \"intro\": \"thank the speaker warmly and specifically, 2 sentences\",\n              \"snapshot_lead\": \"1 sentence introducing the audience numbers\", \"closing\": \"1-2 sentences, e.g. offer to share the recording clips\" },\n \"persona_openers\": { \"hr_leader\": \"...\", \"hr_practitioner\": \"...\", \"hr_tech\": \"...\", \"talent\": \"...\", \"finance_ops\": \"...\", \"other\": \"...\" },\n \"industry_lines\": { \"<industry exactly as given>\": \"1 sentence tying the session to that industry\" }\n}\npersona_openers: one sentence each, tying the session to what that persona cares about. Do not mention the person's name.`;\n\nconst user = JSON.stringify({\n  event: inp.event, summary: ins.event_summary, hook: ins.one_line_hook,\n  takeaways: takeaways.map(t => ({ headline: t.headline, detail: t.detail, quote: t.quote, speaker: t.speaker, timestamp: t.timestamp })),\n  audience_stats_for_speaker_email: stats,\n  industries_present: industries,\n});\n\nreturn [{ json: {\n  contacts, takeaways, rejected, bestQuotes, stats, industries,\n  persona_by_id: Object.fromEntries(contacts.map(c => [c.id, personaOf(c)])),\n  speaker_map: ins.speaker_map || {}, summary: ins.event_summary, hook: ins.one_line_hook,\n  request_body: {\n    model: 'deepseek-v4-pro', thinking: { type: 'disabled' }, temperature: 0.6, max_tokens: 3000,\n    response_format: { type: 'json_object' },\n    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],\n  },\n} }];\n"
+      },
+      "id": "64664b1d-6405-5203-b3e9-d8027418e3db"
+    },
+    {
+      "name": "DeepSeek: write emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request_body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "9dd457fe-f9d9-564e-96fc-087d27ed3e5c"
+    },
+    {
+      "name": "Personalise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Guardrail the generated copy, render the 3 segment emails, and personalise every contact\n// (subject A/B/C variant, persona opener, industry line, UTM-tagged links) as HubSpot properties.\n\nconst inp = $('Read inputs').first().json;\nconst g = $('Fact guard + copy prompt').first().json;\n// Tolerant JSON parse of a DeepSeek reply: strips ``` fences and repairs the two common breakages\n// (raw line breaks and stray double quotes inside string values) with a small character scanner.\nconst parseAI = (resp, what) => {\n  const c = resp && resp.choices && resp.choices[0];\n  if (!c) throw new Error(`${what}: DeepSeek returned no answer: ${JSON.stringify(resp).slice(0, 300)}`);\n  const t = String((c.message && c.message.content) || '').trim().replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '');\n  const raw = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);\n  try { return JSON.parse(raw); } catch (e1) {}\n  // common LLM slips: bare hashtags in arrays, trailing commas\n  const raw2 = raw.replace(/([\\[,]\\s*)(#[A-Za-z0-9_]+)\"?(?=\\s*[,\\]])/g, '$1\"$2\"')   // bare hashtags\n    .replace(/,(\\s*[}\\]])/g, '$1');                                                    // trailing commas\n  try { return JSON.parse(raw2); } catch (e2) {}\n  let out = '', inStr = false;\n  for (let i = 0; i < raw2.length; i++) {\n    const ch = raw2[i];\n    if (!inStr) { out += ch; if (ch === '\"') inStr = true; continue; }\n    if (ch === '\\\\') { out += ch + (raw2[i + 1] || ''); i++; continue; }\n    if (ch === '\\n') { out += '\\\\n'; continue; }\n    if (ch === '\\r' || ch === '\\t') { out += ch === '\\t' ? '\\\\t' : ''; continue; }\n    if (ch === '\"') {\n      let j = i + 1; while (j < raw2.length && /\\s/.test(raw2[j])) j++;\n      if (j >= raw2.length || ',}]:'.includes(raw2[j])) { out += ch; inStr = false; } else out += '\\\\\"';\n      continue;\n    }\n    out += ch;\n  }\n  try { return JSON.parse(out); }\n  catch (e) { throw new Error(`${what}: invalid JSON (finish_reason=${c.finish_reason}, ${t.length} chars). Starts: ${t.slice(0, 160)}`); }\n};\nconst copy = parseAI($json, 'Copy generation');\n\n// ---------- guardrails ----------\nconst issues = [];\nconst allowedNumbers = new Set([...JSON.stringify(g.stats).matchAll(/\\d+/g)].map(m => m[0])\n  .concat([...$('Format transcript').first().json.transcript.matchAll(/\\d+/g)].map(m => m[0])).concat(['1', '2', '3']));\nconst checkText = (where, s) => {\n  if (!s || typeof s !== 'string') { issues.push(`${where}: missing`); return; }\n  if (/\\{\\{|\\}\\}|https?:\\/\\//.test(s)) issues.push(`${where}: contains a token or URL`);\n  for (const n of s.match(/\\d+/g) || []) if (!allowedNumbers.has(n)) issues.push(`${where}: number \"${n}\" is not in the data`);\n};\nfor (const seg of ['attendee', 'no_show', 'speaker']) {\n  const c = copy[seg] || {};\n  if (!Array.isArray(c.subjects) || c.subjects.length < 3) issues.push(`${seg}: needs 3 subject lines`);\n  (c.subjects || []).forEach((s, i) => { if (s.length > 70) issues.push(`${seg} subject ${i + 1} longer than 70 chars`); });\n  for (const [k, v] of Object.entries(c)) if (k !== 'subjects') checkText(`${seg}.${k}`, v);\n}\n(copy.takeaway_snippets || []).forEach((s, i) => checkText(`snippet ${i + 1}`, s));\nconst blocking = issues.filter(i => /missing|token or URL|needs 3/.test(i));\nif (blocking.length) throw new Error('Copy failed guardrails: ' + blocking.join('; '));\n\n// ---------- helpers ----------\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst utm = (url, content) => {\n  if (!url) return '';\n  const [base, hashPart] = url.split('#');\n  const q = `utm_source=hubspot&utm_medium=email&utm_campaign=${encodeURIComponent(inp.utm_campaign)}&utm_content=${encodeURIComponent(content)}`;\n  return base + (base.includes('?') ? '&' : '?') + q + (hashPart ? '#' + hashPart : '');\n};\nconst hash = s => [...String(s)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);\nconst VARIANTS = ['A', 'B', 'C'];\n\nconst takeawaysHtml = g.takeaways.map((t, i) => `<li style=\"margin-bottom:12px\"><strong>${esc(copy.takeaway_snippets?.[i] || t.headline)}</strong><br>\n<em style=\"color:#555\">&ldquo;${esc(t.quote)}&rdquo; &mdash; ${esc(t.speaker)}, ${esc(t.timestamp)}</em></li>`).join('');\nconst button = (href, text) => `<p style=\"margin:20px 0\"><a href=\"${href}\" style=\"background:#1f5eff;color:#ffffff;padding:11px 18px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block\">${esc(text)}</a></p>`;\nconst sign = `<p>${esc(inp.from_name)}</p>`;\n\nconst html = {\n  attendee: `<p>Hi {{ personalization_token('contact.firstname', 'there') }},</p><p>${esc(copy.attendee.intro)}</p><p>{{ contact.pe_opening_line }}</p>\n<p><strong>${esc(copy.attendee.takeaways_lead)}</strong></p><ol>${takeawaysHtml}</ol>\n<p>{{ contact.pe_industry_line }}</p><p>${esc(copy.attendee.recording_line)}</p>\n${button('{{ contact.pe_recording_url }}', 'Watch the recording')}\n<p>${esc(copy.attendee.cta_line)} <a href=\"{{ contact.pe_cta_url }}\">${esc(copy.attendee.cta_text)}</a></p>\n<p>${esc(copy.attendee.closing)}</p>${sign}`,\n  no_show: `<p>Hi {{ personalization_token('contact.firstname', 'there') }},</p><p>${esc(copy.no_show.intro)}</p><p>{{ contact.pe_opening_line }}</p>\n${button('{{ contact.pe_recording_url }}', 'Watch the full recording')}\n<p><strong>${esc(copy.no_show.takeaways_lead)}</strong></p><ol>${takeawaysHtml}</ol>\n<p>{{ contact.pe_industry_line }}</p><p>${esc(copy.no_show.cta_line)} <a href=\"{{ contact.pe_cta_url }}\">${esc(copy.no_show.cta_text)}</a></p>\n<p>${esc(copy.no_show.closing)}</p>${sign}`,\n  speaker: `<p>Hi {{ personalization_token('contact.firstname', 'there') }},</p><p>${esc(copy.speaker.intro)}</p>\n<p><strong>${esc(copy.speaker.snapshot_lead)}</strong></p>\n<table cellpadding=\"6\" style=\"border-collapse:collapse;font-size:14px\">\n<tr><td>Registered</td><td><strong>${g.stats.registrants}</strong> people from ${g.stats.companies} companies in ${g.stats.countries} countries</td></tr>\n<tr><td>Attended live</td><td><strong>${g.stats.attendees}</strong> (${g.stats.attendance_rate_pct}% of registrants)</td></tr>\n<tr><td>Avg. time watched</td><td><strong>${g.stats.avg_minutes} min</strong>; ${g.stats.stayed_30_plus_pct}% stayed 30+ min</td></tr>\n<tr><td>Audience questions</td><td><strong>${g.stats.questions}</strong></td></tr>\n<tr><td>Director level or above</td><td><strong>${g.stats.director_plus_pct}%</strong> of attendees</td></tr>\n<tr><td>Top industries</td><td>${esc(g.stats.top_industries.join(', '))}</td></tr></table>\n<p><strong>Your most-quoted moment:</strong><br><em>{{ contact.pe_speaker_quote }}</em></p>\n${button('{{ contact.pe_recording_url }}', 'See the recording')}\n<p>${esc(copy.speaker.closing)}</p>${sign}`,\n};\n\n// ---------- per-contact personalisation ----------\nconst SEG = { attended: 'attendee', no_show: 'no_show', speaker: 'speaker' };\nconst members = { attendee: [], no_show: [], speaker: [] };\nconst nowIso = new Date().toISOString();\nconst inputs = g.contacts.map(c => {\n  const seg = SEG[c.event_attendance_status] || 'no_show';\n  const v = hash(c.id) % 3, variant = VARIANTS[v];\n  const persona = g.persona_by_id[c.id] || 'other';\n  members[seg].push(c.id);\n  const name = `${c.firstname || ''} ${c.lastname || ''}`.trim();\n  const q = g.bestQuotes[name];\n  const props = {\n    pe_subject: (copy[seg].subjects[v] || copy[seg].subjects[0]).replace(/\\{first_name\\}/g, c.firstname || 'there'),\n    pe_opening_line: seg === 'speaker' ? '' : (copy.persona_openers?.[persona] || ''),\n    pe_industry_line: copy.industry_lines?.[c.company_industry] || '',\n    pe_recording_url: utm(inp.recording_url, `${seg}_${variant}`),\n    pe_cta_url: utm(inp.cta_url || inp.recording_url, `${seg}_${variant}_cta`),\n    pe_speaker_snapshot: seg === 'speaker' ? `${g.stats.attendees} attended live (${g.stats.attendance_rate_pct}%), avg ${g.stats.avg_minutes} min, ${g.stats.questions} questions` : '',\n    pe_speaker_quote: seg === 'speaker' && q ? `\"${q.quote}\" (${q.timestamp})` : '',\n    postevent_email_variant: `${seg}_${variant}_${persona}`,\n    utm_campaign_postevent: inp.utm_campaign,\n    pe_sent_at: nowIso,\n  };\n  return { id: c.id, properties: props };\n});\n\nconst LABEL = { attendee: 'Attendees: thank-you', no_show: 'No-shows: catch-up', speaker: 'Speakers: thank-you' };\nconst segments = Object.keys(html).map(seg => ({\n  segment: seg, label: LABEL[seg], member_ids: members[seg],\n  list: { name: `${inp.event.slice(0, 60)} · ${LABEL[seg]} · ${inp.runId}`, objectTypeId: '0-1', processingType: 'MANUAL' },\n  email: {\n    name: `${inp.event.slice(0, 60)} · ${LABEL[seg]} · ${inp.runId}`,\n    subject: '{{ contact.pe_subject }}',\n    from: { fromName: inp.from_name, replyTo: inp.reply_to || undefined },\n    content: { templatePath: '@hubspot/email/dnd/Plain_email.html',\n      widgets: { primary_rich_text_module: { id: 'primary_rich_text_module', name: 'primary_rich_text_module', type: 'module',\n        module_id: 1155639, body: { html: html[seg], module_id: 1155639 } } } },\n  },\n  subjects: copy[seg].subjects, preview: copy[seg].preview,\n}));\n\nreturn [{ json: { batch: { inputs }, segments, issues, copy, takeaways: g.takeaways, rejected: g.rejected, stats: g.stats } }];\n"
+      },
+      "id": "d149d506-7722-5eec-9d1c-6772a5f2042f"
+    },
+    {
+      "name": "Update contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/batch/update",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.batch) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "3bac302c-93a5-5efd-8558-e3710ef483a7"
+    },
+    {
+      "name": "Split segments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        220
+      ],
+      "parameters": {
+        "jsCode": "return $('Personalise').first().json.segments.map(s => ({ json: s }));"
+      },
+      "id": "d1b02309-f203-5e96-8bbc-2f3970172c2f"
+    },
+    {
+      "name": "Create segment list",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/lists",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.list) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "a3633642-3f15-5c67-a4a2-2399ace59415"
+    },
+    {
+      "name": "Add members",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        220
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.hubapi.com/crm/v3/lists/{{ $json.list.listId }}/memberships/add",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Split segments').item.json.member_ids) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "d975ba67-b7cd-59ea-85e3-307704af88f8"
+    },
+    {
+      "name": "Create email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/marketing/v3/emails",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...$('Split segments').item.json.email, to: { contactIlsLists: { include: [String($('Create segment list').item.json.list.listId)], exclude: [] } } }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "c17d9bf9-7e90-57b5-b554-64c3e93705bd"
+    },
+    {
+      "name": "Send email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        220
+      ],
+      "parameters": {
+        "method": "={{ $('Read inputs').first().json.mode === 'send' ? 'POST' : 'GET' }}",
+        "url": "={{ 'https://api.hubapi.com/marketing/v3/emails/' + $json.id + ($('Read inputs').first().json.mode === 'send' ? '/publish' : '') }}",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "e47806b6-b311-5949-b2fb-30f62111221b"
+    },
+    {
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        220
+      ],
+      "parameters": {
+        "jsCode": "// M2 · Summary shown on the form's result page.\n\nconst p = $('Personalise').first().json;\nconst inp = $('Read inputs').first().json;\nconst segs = $('Split segments').all().map(i => i.json);\nconst emails = $('Create email').all().map(i => i.json || {});\nconst lines = segs.map((s, i) =>\n  `• ${s.label}: ${s.member_ids.length} contacts, HubSpot email ${emails[i] && emails[i].id ? emails[i].id : '(not created)'}\\n   Subjects A/B/C: ${(s.subjects || []).join(' | ')}`);\nconst message = [\n  inp.mode === 'send' ? 'Sent through HubSpot.' : 'Drafts created in HubSpot (nothing sent).',\n  `UTM campaign: ${inp.utm_campaign}`,\n  '',\n  ...lines,\n  '',\n  `Fact guard: ${(p.takeaways || []).length} verified takeaways used, ${(p.rejected || []).length} unverified quote(s) dropped.`,\n  `Guardrail notes: ${(p.issues || []).length ? p.issues.join('; ') : 'none'}.`,\n  'Open HubSpot > Marketing > Email to preview, send or see opens and clicks.',\n].join('\\n');\nreturn [{ json: { message } }];\n"
+      },
+      "id": "3bf7cfb2-5772-53f8-9457-a051521d944e"
+    },
+    {
+      "name": "Show result",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        220
+      ],
+      "webhookId": "18a06983-e8ad-5ca3-afe0-1c3df82e2656",
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Post-event emails ready",
+        "completionMessage": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "4028fa5a-e2a4-5ecc-80fa-a27777c99f4d"
+    }
+  ],
+  "connections": {
+    "Event closed form": {
+      "main": [
+        [
+          {
+            "node": "Read inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read inputs": {
+      "main": [
+        [
+          {
+            "node": "Event contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event contacts": {
+      "main": [
+        [
+          {
+            "node": "Prepare transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare transcription": {
+      "main": [
+        [
+          {
+            "node": "Deepgram transcribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deepgram transcribe": {
+      "main": [
+        [
+          {
+            "node": "Format transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format transcript": {
+      "main": [
+        [
+          {
+            "node": "Build insight prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build insight prompt": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek: extract insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek: extract insights": {
+      "main": [
+        [
+          {
+            "node": "Fact guard + copy prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fact guard + copy prompt": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek: write emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek: write emails": {
+      "main": [
+        [
+          {
+            "node": "Personalise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Personalise": {
+      "main": [
+        [
+          {
+            "node": "Update contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update contacts": {
+      "main": [
+        [
+          {
+            "node": "Split segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split segments": {
+      "main": [
+        [
+          {
+            "node": "Create segment list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create segment list": {
+      "main": [
+        [
+          {
+            "node": "Add members",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add members": {
+      "main": [
+        [
+          {
+            "node": "Create email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create email": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Show result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

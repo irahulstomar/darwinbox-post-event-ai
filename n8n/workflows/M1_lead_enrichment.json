@@ -1,0 +1,636 @@
+{
+  "name": "M1 · Lead Enrichment",
+  "nodes": [
+    {
+      "name": "Upload registrant CSV",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "cb6ad94a-e608-583b-9881-69cd18d9924e",
+      "parameters": {
+        "formTitle": "Post-event lead enrichment",
+        "formDescription": "Upload the webinar registrant/attendee export (Zoom, GoTo or ON24 CSV). It is cleaned, de-duplicated against HubSpot, enriched with Clay + DeepSeek, scored and routed to SDRs.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Registrant export (CSV)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".csv",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Event name",
+              "placeholder": "Darwinbox Cortex and the AI-Native Era of HCM",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b8c3558-619b-581f-ac8d-b8e0f5e235df"
+    },
+    {
+      "name": "Parse & clean CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M1a · Parse & clean CSV, then dedupe inside the file.\n// Input: one item from the Form Trigger with the CSV as binary + \"Event name\".\n// Output: one item per unique person, with clean fields and \"before\" completeness.\n\nconst PERSONAL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'rediffmail.com', 'proton.me'];\nconst DEMO_SUFFIX = '.example.com'; // demo-safe emails: name@company.com.example.com\nconst DIAL_CODES = { '+91': 'India', '+65': 'Singapore', '+60': 'Malaysia', '+63': 'Philippines', '+62': 'Indonesia',\n  '+84': 'Vietnam', '+66': 'Thailand', '+971': 'United Arab Emirates', '+966': 'Saudi Arabia', '+974': 'Qatar',\n  '+1': 'United States', '+44': 'United Kingdom' };\nconst COUNTRY_ALIASES = { 'uae': 'United Arab Emirates', 'u.a.e.': 'United Arab Emirates', 'usa': 'United States',\n  'us': 'United States', 'uk': 'United Kingdom', 'ksa': 'Saudi Arabia' };\n// The 14 fields an SDR needs. \"Before\" = what the raw export gives us.\nconst COMPLETENESS_FIELDS = ['firstname', 'lastname', 'email', 'jobtitle', 'company', 'country', 'job_function',\n  'seniority', 'company_industry', 'company_size_band', 'icp_tier', 'region', 'hubspot_owner_id', 'lifecyclestage'];\n\n// ---------- helpers ----------\nfunction parseCsv(text) {\n  const rows = []; let row = [], field = '', q = false;\n  for (let i = 0; i < text.length; i++) {\n    const c = text[i];\n    if (q) {\n      if (c === '\"' && text[i + 1] === '\"') { field += '\"'; i++; }\n      else if (c === '\"') q = false;\n      else field += c;\n    } else if (c === '\"') q = true;\n    else if (c === ',') { row.push(field); field = ''; }\n    else if (c === '\\n' || c === '\\r') {\n      if (c === '\\r' && text[i + 1] === '\\n') i++;\n      row.push(field); field = '';\n      if (row.some(v => v !== '')) rows.push(row);\n      row = [];\n    } else field += c;\n  }\n  if (field !== '' || row.length) { row.push(field); if (row.some(v => v !== '')) rows.push(row); }\n  const header = rows.shift().map(h => h.trim().replace(/^﻿/, ''));\n  return rows.map(r => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));\n}\nconst squash = s => (s || '').replace(/\\s+/g, ' ').trim();\nconst titleCase = s => squash(s).toLowerCase().replace(/(^|[\\s\\-'])([a-z])/g, (m, p, ch) => p + ch.toUpperCase());\nconst normOrg = s => squash(s).toLowerCase().replace(/['’.]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ')\n  .replace(/\\b(ltd|limited|pvt|private|inc|corp|corporation|co|plc|llc|holding|holdings|group|e retail)\\b/g, ' ')\n  .replace(/\\s+/g, ' ').trim();\nfunction jaroWinkler(a, b) {\n  a = a || ''; b = b || ''; if (a === b) return 1; if (!a || !b) return 0;\n  const md = Math.max(Math.floor(Math.max(a.length, b.length) / 2) - 1, 0);\n  const am = new Array(a.length).fill(false), bm = new Array(b.length).fill(false); let m = 0;\n  for (let i = 0; i < a.length; i++) for (let j = Math.max(0, i - md); j < Math.min(b.length, i + md + 1); j++)\n    if (!bm[j] && a[i] === b[j]) { am[i] = bm[j] = true; m++; break; }\n  if (!m) return 0;\n  let t = 0, k = 0;\n  for (let i = 0; i < a.length; i++) if (am[i]) { while (!bm[k]) k++; if (a[i] !== b[k]) t++; k++; }\n  const jaro = (m / a.length + m / b.length + (m - t / 2) / m) / 3;\n  let l = 0; while (l < 4 && a[l] === b[l]) l++;\n  return jaro + l * 0.1 * (1 - jaro);\n}\n// Company similarity: token containment, so \"Nykaa\" ~ \"Nykaa E-Retail\" and \"TATA STEEL\" ~ \"Tata Steel Limited\".\nfunction orgSim(a, b) {\n  const A = new Set(normOrg(a).split(' ').filter(Boolean)), B = new Set(normOrg(b).split(' ').filter(Boolean));\n  if (!A.size || !B.size) return 0;\n  const inter = [...A].filter(x => B.has(x)).length;\n  return inter / Math.min(A.size, B.size);\n}\nconst nameKey = (f, l) => [f, l].join(' ').toLowerCase().split(/\\s+/).filter(Boolean).sort().join(' ');\n\n// ---------- read the upload ----------\nconst upload = $input.first();\nconst binKey = Object.keys(upload.binary || {})[0];\nif (!binKey) throw new Error('No CSV file found in the form submission');\nconst csvText = (await this.helpers.getBinaryDataBuffer(0, binKey)).toString('utf8');\nconst eventName = squash(upload.json['Event name']) || 'Untitled event';\nconst runId = 'm1-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);\nconst raw = parseCsv(csvText);\n\n// ---------- clean each row ----------\nconst cleaned = raw.map((r, i) => {\n  const email = (r['Email'] || '').toLowerCase().replace(/\\s+/g, '');\n  let host = email.split('@')[1] || '';\n  if (host.endsWith(DEMO_SUFFIX)) host = host.slice(0, -DEMO_SUFFIX.length);\n  const isPersonal = PERSONAL_DOMAINS.includes(host);\n  let country = squash(r['Country/Region Name']), countrySource = country ? 'input' : '';\n  if (country && COUNTRY_ALIASES[country.toLowerCase()]) country = COUNTRY_ALIASES[country.toLowerCase()];\n  if (!country && r['Phone']) {\n    const code = Object.keys(DIAL_CODES).sort((a, b) => b.length - a.length).find(c => r['Phone'].startsWith(c));\n    if (code) { country = DIAL_CODES[code]; countrySource = 'phone_dial_code'; }\n  }\n  const role = (r['Role'] || 'Attendee').toLowerCase() === 'panelist' ? 'speaker'\n    : ((r['Attended'] || '').toLowerCase() === 'yes' ? 'attended' : 'no_show');\n  return {\n    src_row: i + 2,\n    firstname: titleCase(r['First Name']), lastname: titleCase(r['Last Name']),\n    email, email_is_personal: isPersonal, company_domain: isPersonal ? '' : host,\n    jobtitle: squash(r['Job Title']), company: squash(r['Organization']),\n    country, country_source: countrySource, phone: squash(r['Phone']),\n    attendance: role,\n    time_in_session_min: Number(r['Time in Session (minutes)']) || 0,\n    questions_asked: Number(r['Questions Asked']) || 0,\n    registered_at: r['Registration Time'],\n  };\n});\n\n// ---------- dedupe inside the file ----------\n// Same email, or same person (name match, either order) at the same company.\nconst groups = [];\nfor (const c of cleaned) {\n  const g = groups.find(g => g.some(o =>\n    (o.email && o.email === c.email) ||\n    (jaroWinkler(nameKey(o.firstname, o.lastname), nameKey(c.firstname, c.lastname)) >= 0.93 &&\n      (orgSim(o.company, c.company) >= 0.6 || (o.company_domain && o.company_domain === c.company_domain)))));\n  if (g) g.push(c); else groups.push([c]);\n}\nconst rank = c => (c.attendance === 'speaker' ? 4 : c.attendance === 'attended' ? 2 : 0) + (c.email_is_personal ? 0 : 1) + c.time_in_session_min / 100;\nconst people = groups.map(g => {\n  const sorted = [...g].sort((a, b) => rank(b) - rank(a));\n  const p = { ...sorted[0] };\n  for (const o of sorted.slice(1)) for (const k of ['jobtitle', 'company', 'country', 'phone', 'company_domain'])\n    if (!p[k] && o[k]) { p[k] = o[k]; if (k === 'country') p.country_source = o.country_source; }\n  p.questions_asked = Math.max(...g.map(x => x.questions_asked));\n  p.infile_duplicates = g.length - 1;\n  p.infile_merge_note = g.length > 1\n    ? `Merged ${g.length} registrations (rows ${g.map(x => x.src_row).join(', ')}): ` +\n      (new Set(g.map(x => x.email)).size === 1 ? 'same email' : 'same person at same company, different email')\n    : '';\n  p.other_emails = [...new Set(g.map(x => x.email))].filter(e => e !== p.email);\n  const have = { firstname: p.firstname, lastname: p.lastname, email: p.email, jobtitle: p.jobtitle, company: p.company,\n    country: p.country_source === 'input' ? p.country : '' };\n  p.fields_missing_before = COMPLETENESS_FIELDS.filter(f => !have[f]);\n  p.data_completeness_before_pct = Math.round(100 * (COMPLETENESS_FIELDS.length - p.fields_missing_before.length) / COMPLETENESS_FIELDS.length);\n  p.event_name = eventName; p.m1_run_id = runId;\n  return p;\n});\n\nreturn people.map(p => ({ json: { ...p, _stats: { raw_rows: raw.length, unique_people: people.length } } }));\n"
+      },
+      "id": "d648c384-0e84-52fd-ab0e-79171ed0563b"
+    },
+    {
+      "name": "Load CRM contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 200, \"properties\": [\"firstname\", \"lastname\", \"email\", \"company\", \"jobtitle\", \"lifecyclestage\"]}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "id": "d227c440-b9de-5fe5-9a6b-1371f9faf9d0"
+    },
+    {
+      "name": "Match vs HubSpot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// M1a · Match each person against existing HubSpot contacts.\n// Rules (confidence):\n//   1.00  exact email match                      -> update existing (Merged)\n//   0.95  same full name + same company          -> update existing (Merged)\n//   0.80  similar name (JW >= 0.85) + same company -> create, flag \"Needs review\"\n//   else  create new\n// Output: one item per person with hs_props ready to create/update.\n\nconst normOrg = s => (s || '').toLowerCase().replace(/['’.]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ')\n  .replace(/\\b(ltd|limited|pvt|private|inc|corp|corporation|co|plc|llc|holding|holdings|group|e retail|bank)\\b/g, ' ')\n  .replace(/\\s+/g, ' ').trim();\nfunction orgSim(a, b) {\n  const A = new Set(normOrg(a).split(' ').filter(Boolean)), B = new Set(normOrg(b).split(' ').filter(Boolean));\n  if (!A.size || !B.size) return 0;\n  return [...A].filter(x => B.has(x)).length / Math.min(A.size, B.size);\n}\nfunction jaroWinkler(a, b) {\n  a = a || ''; b = b || ''; if (a === b) return 1; if (!a || !b) return 0;\n  const md = Math.max(Math.floor(Math.max(a.length, b.length) / 2) - 1, 0);\n  const am = new Array(a.length).fill(false), bm = new Array(b.length).fill(false); let m = 0;\n  for (let i = 0; i < a.length; i++) for (let j = Math.max(0, i - md); j < Math.min(b.length, i + md + 1); j++)\n    if (!bm[j] && a[i] === b[j]) { am[i] = bm[j] = true; m++; break; }\n  if (!m) return 0;\n  let t = 0, k = 0;\n  for (let i = 0; i < a.length; i++) if (am[i]) { while (!bm[k]) k++; if (a[i] !== b[k]) t++; k++; }\n  const jaro = (m / a.length + m / b.length + (m - t / 2) / m) / 3;\n  let l = 0; while (l < 4 && a[l] === b[l]) l++;\n  return jaro + l * 0.1 * (1 - jaro);\n}\nconst full = (f, l) => `${f || ''} ${l || ''}`.toLowerCase().replace(/\\s+/g, ' ').trim();\nconst domainOf = e => ((e || '').split('@')[1] || '').replace(/\\.example\\.com$/, '');\n\nconst crm = ($('Load CRM contacts').first().json.results || []).map(c => ({ id: c.id, ...c.properties }));\nconst people = $('Parse & clean CSV').all().map(i => i.json);\n\nreturn people.map(p => {\n  let match = null, confidence = 0, reason = 'No match in HubSpot: new contact';\n  const byEmail = crm.find(c => (c.email || '').toLowerCase() === p.email || p.other_emails.includes((c.email || '').toLowerCase()));\n  if (byEmail) { match = byEmail; confidence = 1; reason = `Exact email match with HubSpot contact ${byEmail.id}`; }\n  else {\n    let best = null, bestScore = 0, bestKind = '';\n    for (const c of crm) {\n      const nameJW = jaroWinkler(full(p.firstname, p.lastname), full(c.firstname, c.lastname));\n      const sameCo = Math.max(orgSim(p.company, c.company), p.company_domain && p.company_domain === domainOf(c.email) ? 1 : 0);\n      if (sameCo < 0.6) continue;\n      if (nameJW === 1 && 0.95 > bestScore) { best = c; bestScore = 0.95; bestKind = 'same name, same company'; }\n      else if (nameJW >= 0.85 && 0.8 > bestScore) { best = c; bestScore = 0.8; bestKind = `similar name (${nameJW.toFixed(2)}), same company`; }\n    }\n    if (best) {\n      confidence = bestScore;\n      if (bestScore >= 0.9) { match = best; reason = `Fuzzy match: ${bestKind} as HubSpot contact ${best.id} (${best.firstname} ${best.lastname}, ${best.company})`; }\n      else reason = `Possible duplicate of HubSpot contact ${best.id} (${best.firstname} ${best.lastname}, ${best.company}): ${bestKind}. Created separately for SDR review.`;\n    }\n  }\n  const status = match ? 'merged' : (confidence >= 0.75 ? 'needs_review' : 'new');\n  if (p.infile_merge_note) reason = `${p.infile_merge_note}. ${reason}`;\n\n  const props = {\n    firstname: p.firstname, lastname: p.lastname, jobtitle: p.jobtitle, company: p.company,\n    phone: p.phone || undefined,\n    country: p.country || undefined,\n    event_name: p.event_name, event_attendance_status: p.attendance,\n    time_in_session_min: p.attendance === 'no_show' ? 0 : p.time_in_session_min,\n    questions_asked: p.questions_asked,\n    dedupe_status: status, dedupe_reason: reason, match_confidence: confidence,\n    data_completeness_before_pct: p.data_completeness_before_pct,\n    fields_missing_before: JSON.stringify(p.fields_missing_before),\n    m1_run_id: p.m1_run_id,\n    enrichment_source: 'input',\n  };\n  if (!match) props.email = p.email;               // never overwrite the CRM's email on a merge\n  if (match && !props.jobtitle) delete props.jobtitle;\n  Object.keys(props).forEach(k => props[k] === undefined && delete props[k]);\n\n  return { json: { ...p, hubspot_id: match ? match.id : null, dedupe_status: status, dedupe_reason: reason,\n                   match_confidence: confidence, hs_props: props } };\n});\n"
+      },
+      "id": "e8bb0821-32ee-533e-aeca-84f43e1af097"
+    },
+    {
+      "name": "Create or update contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "method": "={{ $json.hubspot_id ? 'PATCH' : 'POST' }}",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts' + ($json.hubspot_id ? '/' + $json.hubspot_id : '') }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: $json.hs_props }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "id": "f5e501a5-ea72-5950-8fec-885839b0d03d"
+    },
+    {
+      "name": "Send to Clay",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "PASTE_CLAY_WEBHOOK_URL",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ row_id: $json.id, first_name: $('Match vs HubSpot').item.json.firstname, last_name: $('Match vs HubSpot').item.json.lastname, email: $('Match vs HubSpot').item.json.email, job_title: $('Match vs HubSpot').item.json.jobtitle, organization: $('Match vs HubSpot').item.json.company, company_domain: $('Match vs HubSpot').item.json.company_domain, country: $('Match vs HubSpot').item.json.country, attended: $('Match vs HubSpot').item.json.attendance, time_in_session_min: $('Match vs HubSpot').item.json.time_in_session_min, event_name: $('Match vs HubSpot').item.json.event_name }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "id": "51dd362d-e3e7-5ae8-ae72-0e4eb6ec3642"
+    },
+    {
+      "name": "Run summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst people = $('Match vs HubSpot').all().map(i => i.json);\nconst saved = $('Create or update contact').all().filter(i => i.json.id).length;\nconst s = k => people.filter(p => p.dedupe_status === k).length;\nconst avg = Math.round(people.reduce((a, p) => a + p.data_completeness_before_pct, 0) / people.length);\nreturn [{ json: { message:\n  `${people[0]._stats.raw_rows} rows received → ${people.length} unique people (${people[0]._stats.raw_rows - people.length} duplicate registrations merged).\\n` +\n  `HubSpot: ${s('merged')} matched existing contacts, ${s('needs_review')} flagged for review, ${s('new')} new. ${saved} saved.\\n` +\n  `Data completeness before enrichment: ${avg}%. Clay + DeepSeek are enriching now; open the M1 report in ~2 minutes.` } }];\n"
+      },
+      "id": "7a8db00a-9114-5ccc-98e1-98c5ee3397b9"
+    },
+    {
+      "name": "Show summary",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        0
+      ],
+      "webhookId": "b346410a-a9ab-5330-af90-1d12520f8ced",
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Upload processed",
+        "completionMessage": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "1729917a-8ecc-5ef1-9b24-61b00255b8cb"
+    },
+    {
+      "name": "Clay callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "99703d22-9ac9-58b9-8794-d980b3acc148",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clay-enriched-SECRET",
+        "options": {}
+      },
+      "id": "1a54bbe0-c91d-5749-bd68-98f0461e33fe"
+    },
+    {
+      "name": "Get contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.body.row_id }}?properties=firstname,lastname,email,jobtitle,company,country,event_name,event_attendance_status,time_in_session_min,questions_asked,lifecyclestage,hubspot_owner_id,job_function,seniority,company_industry,company_size_band,icp_tier,icp_score,icp_reason,region,dedupe_status,dedupe_reason,data_completeness_pct,data_completeness_before_pct,fields_missing_before,inferred_fields,enrichment_source",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "2b9ad9f3-d580-5801-9196-624111292f3a"
+    },
+    {
+      "name": "Build prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// M1b · Merge the Clay callback with the HubSpot contact and build the DeepSeek classification request.\n// Runs once per item (Clay calls back one row at a time).\n\nconst clay = $('Clay callback').item.json.body || {};\nconst contact = $json.properties || {};\n\n// Clay returns sizes as numbers or ranges (\"1,001-5,000\", \"10001+\"). Keep the lower bound.\nconst parseCount = v => {\n  if (v === null || v === undefined || v === '') return null;\n  const nums = String(v).replace(/,/g, '').match(/\\d+/g);\n  return nums ? Number(nums[0]) : null;\n};\nconst company = {\n  name: clay.company_name || contact.company || '',\n  domain: (clay.final_domain || '').replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '').toLowerCase(),\n  employee_count: parseCount(clay.employee_count),\n  industry: clay.industry || '',\n  hq_country: clay.hq_country || '',\n  linkedin_url: clay.linkedin_url || '',\n  description: (clay.description || '').slice(0, 600),\n};\n\nconst system = `You normalise B2B lead data for Darwinbox, an enterprise HCM (HR software) platform.\nIts buyers are HR leaders and HR tech owners at mid-size and large enterprises in India, Southeast Asia, the Middle East and the US.\nReturn ONLY a JSON object with exactly these keys:\n{\n \"normalized_title\": string | null,           // clean, readable job title, e.g. \"Senior Manager, HR\"\n \"job_function\": one of [\"HR\",\"HRIS\",\"Talent Acquisition\",\"L&D\",\"Total Rewards\",\"Finance\",\"IT\",\"Operations\",\"Leadership\",\"Student\",\"Consulting\",\"Other\"],\n \"seniority\": one of [\"C-level\",\"VP\",\"Director\",\"Manager\",\"IC\",\"Unknown\"],\n \"industry\": string | null,                   // short normalised industry, e.g. \"IT Services\", \"Banking & Financial Services\"\n \"employee_count_estimate\": integer | null,   // ONLY if company.employee_count is null and you know the company well\n \"contact_country\": string | null,            // ONLY if contact.country is empty; use the company HQ country\n \"disqualifier\": one of [\"none\",\"student\",\"consultant_or_agency\",\"hr_tech_vendor\",\"personal_use\"],\n \"inferred\": [ { \"field\": string, \"value\": string, \"confidence\": number, \"basis\": string } ],\n \"fit_note\": string                            // one sentence: why this person/company is or is not a fit for Darwinbox\n}\nRules:\n- Use the given data first. Only infer what is missing, and list every inferred value in \"inferred\" with a 0-1 confidence and a short basis.\n- If the title is empty, infer function/seniority only if the company + context make it reasonable; otherwise use \"Other\"/\"Unknown\".\n- Never invent facts about the person. In fit_note, refer to the contact by role, not by gendered pronouns.\n- No markdown, no extra keys.`;\n\nconst user = JSON.stringify({\n  contact: {\n    name: `${contact.firstname || ''} ${contact.lastname || ''}`.trim(),\n    job_title: contact.jobtitle || '',\n    company: contact.company || '',\n    country: contact.country || '',\n    attendance: contact.event_attendance_status || '',\n  },\n  company,\n});\n\nreturn {\n  json: {\n    hs_contact_id: clay.row_id || $json.id,\n    contact, company,\n    request_body: {\n      model: 'deepseek-flash',\n      response_format: { type: 'json_object' },\n      temperature: 0.1,\n      max_tokens: 1500,\n      thinking: { type: 'disabled' },   // classification needs no reasoning; keeps it fast and the JSON complete\n      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],\n    },\n  },\n};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "9ffe8851-5780-5d47-b9f7-3205e28018b7"
+    },
+    {
+      "name": "DeepSeek classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request_body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "e0b75888-add3-5111-85b6-027567eb8dcd"
+    },
+    {
+      "name": "Score & route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// M1b · Validate the DeepSeek output, score ICP fit, assign region + owner + lifecycle stage,\n// and build the HubSpot company + contact updates. Runs once per item.\n\n// ---------- editable config (show this in the demo) ----------\nconst ICP = {\n  size:      [[5000, 30], [1000, 25], [500, 18], [200, 8], [0, 0]],           // employees >= n -> points\n  region:    { india: 15, sea: 15, mea: 15, na: 10, row: 5 },\n  persona:   { 'HR': 20, 'HRIS': 20, 'Talent Acquisition': 18, 'L&D': 16, 'Total Rewards': 18, 'Leadership': 15,\n               'Finance': 10, 'IT': 10, 'Operations': 6, 'Consulting': 0, 'Student': 0, 'Other': 0 },\n  seniority: { 'C-level': 15, 'VP': 15, 'Director': 12, 'Manager': 7, 'IC': 2, 'Unknown': 0 },\n  engagement: { attended: 8, stayed_30_min: 6, asked_question: 6 },          // intent matters as much as fit\n  tiers: { A: 75, B: 50 },                                                    // >= A -> A, >= B -> B, else C\n  hr_persona_min: 15,                                                         // persona points needed for Tier A\n};\nconst OWNERS = { senior: '169348475', india: '169348477', international: '169348476', speakers: '100973776' };\nconst REGION_OF = {\n  'India': 'india', 'Singapore': 'sea', 'Malaysia': 'sea', 'Philippines': 'sea', 'Indonesia': 'sea', 'Vietnam': 'sea',\n  'Thailand': 'sea', 'United Arab Emirates': 'mea', 'UAE': 'mea', 'Saudi Arabia': 'mea', 'Qatar': 'mea', 'Kuwait': 'mea',\n  'Oman': 'mea', 'Bahrain': 'mea', 'Egypt': 'mea', 'South Africa': 'mea', 'United States': 'na', 'Canada': 'na',\n};\nconst STAGES = ['subscriber', 'lead', 'marketingqualifiedlead', 'salesqualifiedlead', 'opportunity', 'customer', 'evangelist', 'other'];\nconst ENUMS = {\n  job_function: Object.keys(ICP.persona),\n  seniority: Object.keys(ICP.seniority),\n  disqualifier: ['none', 'student', 'consultant_or_agency', 'hr_tech_vendor', 'personal_use'],\n};\n// The same 14 fields M1a measured \"before\".\nconst COMPLETENESS_FIELDS = ['firstname', 'lastname', 'email', 'jobtitle', 'company', 'country', 'job_function',\n  'seniority', 'company_industry', 'company_size_band', 'icp_tier', 'region', 'hubspot_owner_id', 'lifecyclestage'];\n\n// ---------- inputs ----------\nconst prev = $('Build prompt').item.json;\nconst c = prev.contact, co = prev.company;\nlet ai = {}, aiError = '';\ntry { ai = JSON.parse($json.choices[0].message.content); } catch (e) { aiError = 'DeepSeek returned invalid JSON; used fallbacks'; }\nconst pick = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);\nconst fn = pick(ai.job_function, ENUMS.job_function, 'Other');\nconst sen = pick(ai.seniority, ENUMS.seniority, 'Unknown');\nconst disq = pick(ai.disqualifier, ENUMS.disqualifier, 'none');\nconst inferred = Array.isArray(ai.inferred) ? ai.inferred.filter(x => x && x.field).slice(0, 10) : [];\n\n// ---------- company facts: Clay first, AI fallback ----------\nlet employees = co.employee_count, sizeSource = employees ? 'clay' : '';\nif (!employees && Number.isInteger(ai.employee_count_estimate)) { employees = ai.employee_count_estimate; sizeSource = 'llm'; }\nconst band = employees == null ? null : employees >= 5000 ? '5000plus' : employees >= 1000 ? '1000_4999'\n  : employees >= 500 ? '500_999' : employees >= 200 ? '200_499' : '1_199';\nconst industry = co.industry || ai.industry || null;\nconst industrySource = co.industry ? 'clay' : (ai.industry ? 'llm' : '');\n\n// ---------- region + country ----------\nlet country = c.country || '', countrySource = country ? 'input' : '';\nif (!country && ai.contact_country) { country = ai.contact_country; countrySource = 'llm'; }\nif (!country && co.hq_country) { country = co.hq_country; countrySource = 'clay_hq'; }\nconst region = REGION_OF[country] || 'row';\n\n// ---------- ICP score ----------\nconst attendance = c.event_attendance_status;\nconst isSpeaker = attendance === 'speaker';\nconst pts = {\n  company_size: employees == null ? 0 : ICP.size.find(([n]) => employees >= n)[1],\n  region: ICP.region[region] ?? 0,\n  persona: ICP.persona[fn] ?? 0,\n  seniority: ICP.seniority[sen] ?? 0,\n  engagement: (attendance === 'attended' ? ICP.engagement.attended : 0)\n    + (Number(c.time_in_session_min) >= 30 ? ICP.engagement.stayed_30_min : 0)\n    + (Number(c.questions_asked) > 0 ? ICP.engagement.asked_question : 0),\n};\nlet score = Object.values(pts).reduce((a, b) => a + b, 0);\nif (disq !== 'none') { score = Math.min(score, ICP.tiers.B - 1); pts.disqualifier_cap = disq; }\nlet tier = score >= ICP.tiers.A ? 'a' : score >= ICP.tiers.B ? 'b' : 'c';\n// Tier A needs an HR-buyer persona: a big company alone is not enough.\nif (tier === 'a' && pts.persona < ICP.hr_persona_min) { tier = 'b'; pts.tier_rule = 'A needs HR-buyer persona'; }\n\n// ---------- owner + lifecycle (forward only) ----------\nconst owner = isSpeaker ? OWNERS.speakers : tier === 'a' ? OWNERS.senior : region === 'india' ? OWNERS.india : OWNERS.international;\n// MQL = attended + Tier A/B + we know their role. Unknown role stays a lead until an SDR qualifies it.\nconst target = isSpeaker ? 'other'\n  : attendance === 'attended' && (tier === 'a' || tier === 'b') && fn !== 'Other' ? 'marketingqualifiedlead' : 'lead';\nconst current = c.lifecyclestage || '';\nconst moveStage = !current || STAGES.indexOf(target) > STAGES.indexOf(current);\n\n// ---------- HubSpot payloads ----------\nconst sourceTags = new Set(['input']);\nif (sizeSource === 'clay' || industrySource === 'clay' || co.domain) sourceTags.add('clay');\nif (inferred.length || sizeSource === 'llm' || industrySource === 'llm' || countrySource === 'llm') sourceTags.add('llm');\nconst contactProps = {\n  job_function: fn, seniority: sen,\n  jobtitle: c.jobtitle || ai.normalized_title || undefined,\n  country: country || undefined,\n  company_industry: industry || undefined,\n  company_size_band: band || undefined,\n  icp_tier: isSpeaker ? undefined : tier,\n  icp_score: isSpeaker ? undefined : score,\n  icp_breakdown: JSON.stringify(pts),\n  icp_reason: isSpeaker ? 'Speaker: excluded from ICP scoring' : `${tier.toUpperCase()} (${score}/100${pts.tier_rule ? '; ' + pts.tier_rule : ''}${pts.disqualifier_cap ? '; capped: ' + disq : ''}). ${ai.fit_note || ''}`.trim(),\n  region,\n  hubspot_owner_id: owner,\n  inferred_fields: JSON.stringify([\n    ...inferred,\n    ...(countrySource === 'llm' || countrySource === 'clay_hq' ? [{ field: 'country', value: country, confidence: 0.7, basis: 'company HQ' }] : []),\n    ...(sizeSource === 'llm' ? [{ field: 'company_size', value: String(employees), confidence: 0.6, basis: 'LLM estimate, Clay had no data' }] : []),\n  ]),\n  enrichment_source: [...sourceTags].join('+'),\n};\nif (moveStage) contactProps.lifecyclestage = target;\nif (aiError) contactProps.inferred_fields = JSON.stringify([{ field: 'all', value: aiError, confidence: 0, basis: 'fallback' }]);\n\nconst after = { ...c, ...contactProps, lifecyclestage: moveStage ? target : current };\nconst filled = COMPLETENESS_FIELDS.filter(f => after[f] !== undefined && after[f] !== null && after[f] !== '' && after[f] !== 'Unknown');\ncontactProps.data_completeness_pct = Math.round(100 * filled.length / COMPLETENESS_FIELDS.length);\nObject.keys(contactProps).forEach(k => contactProps[k] === undefined && delete contactProps[k]);\n\nconst companyProps = {\n  name: co.name || c.company, domain: co.domain || undefined,\n  employee_band: band || undefined, numberofemployees: employees || undefined,\n  industry_normalised: industry || undefined, hq_country: co.hq_country || undefined,\n  linkedin_company_page: co.linkedin_url || undefined,\n  description: co.description || undefined,\n  enrichment_source: sizeSource === 'llm' || industrySource === 'llm' ? 'clay+llm' : 'clay',\n};\nObject.keys(companyProps).forEach(k => companyProps[k] === undefined && delete companyProps[k]);\n\nreturn { json: { hs_contact_id: prev.hs_contact_id, company_domain: co.domain, company_name: companyProps.name,\n                 contact_props: contactProps, company_props: companyProps } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "72993efb-377b-5d21-a113-19dd425e0580"
+    },
+    {
+      "name": "Find company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit: 1, filterGroups: [{ filters: [{ propertyName: $json.company_domain ? 'domain' : 'name', operator: 'EQ', value: $json.company_domain || $json.company_name }] }] }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "33adb779-0aa5-5720-abf4-a61dc497d288"
+    },
+    {
+      "name": "Create or update company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "method": "={{ $json.total > 0 ? 'PATCH' : 'POST' }}",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/companies' + ($json.total > 0 ? '/' + $json.results[0].id : '') }}",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: $('Score & route').item.json.company_props }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "fe1bba52-8dbd-5192-8e52-a8a5ab3150eb"
+    },
+    {
+      "name": "Update contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $('Score & route').item.json.hs_contact_id }}",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: $('Score & route').item.json.contact_props }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "6574e580-825b-56dd-aab6-90434546deeb"
+    },
+    {
+      "name": "Link contact to company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.hubapi.com/crm/v4/objects/contacts/{{ $('Score & route').item.json.hs_contact_id }}/associations/default/companies/{{ $('Create or update company').item.json.id }}",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "976f7c55-82c2-5bc7-9fd5-20274d56a5cc"
+    },
+    {
+      "name": "Report request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "webhookId": "63abbc4c-5b62-5ae7-9df9-eb1a6cf5cc40",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "m1-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c1c4d6eb-4974-52c8-95e5-823471467bf6"
+    },
+    {
+      "name": "Event contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit: 200, properties: 'firstname,lastname,email,jobtitle,company,country,event_name,event_attendance_status,time_in_session_min,questions_asked,lifecyclestage,hubspot_owner_id,job_function,seniority,company_industry,company_size_band,icp_tier,icp_score,icp_reason,region,dedupe_status,dedupe_reason,data_completeness_pct,data_completeness_before_pct,fields_missing_before,inferred_fields,enrichment_source'.split(','), filterGroups: [{ filters: [{ propertyName: 'event_name', operator: 'EQ', value: $json.query.event || 'Darwinbox Cortex and the AI-Native Era of HCM' }] }] }) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "c5624229-0153-51a9-8d0b-29bfae71189f"
+    },
+    {
+      "name": "Build report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "jsCode": "// M1c · Build the M1 report page from HubSpot: completeness before vs after, dedupe results,\n// ICP tiers, routing, and the SDR handoff list (+ HubSpot-ready CSV download).\n\nconst FIELDS = ['firstname', 'lastname', 'email', 'jobtitle', 'company', 'country', 'job_function', 'seniority',\n  'company_industry', 'company_size_band', 'icp_tier', 'region', 'hubspot_owner_id', 'lifecyclestage'];\nconst LABEL = { firstname: 'First name', lastname: 'Last name', email: 'Email', jobtitle: 'Job title', company: 'Company',\n  country: 'Country', job_function: 'Job function', seniority: 'Seniority', company_industry: 'Industry',\n  company_size_band: 'Company size', icp_tier: 'ICP tier', region: 'Region', hubspot_owner_id: 'Owner', lifecyclestage: 'Lifecycle stage' };\nconst OWNER = { '169348475': 'Neha (Senior SDR)', '169348477': 'Priya (India SDR)', '169348476': 'Aman (SEA/MEA SDR)', '100973776': 'Rahul (speakers)' };\nconst STAGE = { subscriber: 'Subscriber', lead: 'Lead', marketingqualifiedlead: 'MQL', salesqualifiedlead: 'SQL', other: 'Other' };\nconst SIZE = { '1_199': '1-199', '200_499': '200-499', '500_999': '500-999', '1000_4999': '1,000-4,999', '5000plus': '5,000+' };\nconst esc = s => String(s ?? '').replace(/[&<>\"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[ch]));\nconst has = v => v !== undefined && v !== null && v !== '' && v !== 'Unknown';\n\nconst event = $('Report request').first().json.query?.event || 'Darwinbox Cortex and the AI-Native Era of HCM';\nconst contacts = $input.all().flatMap(i => i.json.results || []).map(r => ({ id: r.id, ...r.properties }));\nconst n = contacts.length || 1;\n\n// completeness per field, before vs after\nconst rows = FIELDS.map(f => {\n  const before = contacts.filter(c => { try { return !JSON.parse(c.fields_missing_before || '[]').includes(f); } catch { return false; } }).length;\n  const after = contacts.filter(c => has(c[f])).length;\n  return { f, before: Math.round(100 * before / n), after: Math.round(100 * after / n) };\n});\nconst avg = k => Math.round(rows.reduce((s, r) => s + r[k], 0) / rows.length);\nconst count = (k, v) => contacts.filter(c => c[k] === v).length;\nconst scored = contacts.filter(c => c.event_attendance_status !== 'speaker');\nconst handoff = scored.filter(c => c.lifecyclestage === 'marketingqualifiedlead' || c.icp_tier === 'a')\n  .sort((a, b) => Number(b.icp_score) - Number(a.icp_score));\nconst review = contacts.filter(c => c.dedupe_status === 'needs_review');\nconst merged = contacts.filter(c => c.dedupe_status === 'merged');\n\n// HubSpot-ready CSV (import-friendly internal names as headers)\nconst csvCols = ['email', 'firstname', 'lastname', 'jobtitle', 'company', 'country', 'job_function', 'seniority',\n  'company_industry', 'company_size_band', 'region', 'icp_tier', 'icp_score', 'icp_reason', 'hubspot_owner_id',\n  'lifecyclestage', 'event_name', 'event_attendance_status', 'dedupe_status'];\nconst csv = [csvCols.join(','), ...contacts.map(c => csvCols.map(k => `\"${String(c[k] ?? '').replace(/\"/g, '\"\"')}\"`).join(','))].join('\\n');\n\nconst bar = (p, cls) => `<div class=\"bar\"><span class=\"${cls}\" style=\"width:${p}%\"></span></div><b>${p}%</b>`;\nconst html = `<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>M1 Lead Enrichment Report</title>\n<style>\n:root{--bg:#f6f7f9;--card:#fff;--ink:#14171f;--muted:#5b6475;--line:#e3e6ec;--before:#c9ced8;--after:#1f7a5a;--a:#1f7a5a;--b:#b7791f;--c:#8a93a5}\n@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--ink:#e8ebf1;--muted:#9aa3b5;--line:#2a2f3a;--before:#3a4150;--after:#3fb68b;--a:#3fb68b;--b:#e0a542;--c:#7d8699}}\n*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}\nmain{max-width:1100px;margin:0 auto;padding:24px 16px}h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px}\n.sub{color:var(--muted);margin:0 0 20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}\n.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.k{color:var(--muted);font-size:12px}.v{font-size:24px;font-weight:650}\ntable{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}\nth,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;color:var(--muted);font-weight:600}\n.bar{display:inline-block;width:110px;height:8px;background:var(--line);border-radius:4px;margin-right:6px;vertical-align:middle}.bar span{display:block;height:100%;border-radius:4px}\n.before{background:var(--before)}.after{background:var(--after)}.t{font-weight:700}.ta{color:var(--a)}.tb{color:var(--b)}.tc{color:var(--c)}\n.wrap{overflow-x:auto}a.btn{display:inline-block;margin-top:8px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink);text-decoration:none;background:var(--card)}\n.muted{color:var(--muted)}\n</style></head><body><main>\n<h1>Lead Enrichment Report</h1>\n<p class=\"sub\">${esc(event)} · ${contacts.length} contacts in HubSpot · generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC</p>\n<div class=\"grid\">\n <div class=\"card\"><div class=\"k\">Completeness before</div><div class=\"v\">${avg('before')}%</div></div>\n <div class=\"card\"><div class=\"k\">Completeness after</div><div class=\"v\">${avg('after')}%</div></div>\n <div class=\"card\"><div class=\"k\">Merged with existing CRM</div><div class=\"v\">${merged.length}</div></div>\n <div class=\"card\"><div class=\"k\">Needs review</div><div class=\"v\">${review.length}</div></div>\n <div class=\"card\"><div class=\"k\">ICP tier A / B / C</div><div class=\"v\"><span class=\"ta\">${count('icp_tier', 'a')}</span> / <span class=\"tb\">${count('icp_tier', 'b')}</span> / <span class=\"tc\">${count('icp_tier', 'c')}</span></div></div>\n <div class=\"card\"><div class=\"k\">MQLs for SDR handoff</div><div class=\"v\">${count('lifecyclestage', 'marketingqualifiedlead')}</div></div>\n</div>\n\n<h2>Field completeness: before vs after</h2>\n<div class=\"wrap\"><table><tr><th>Field</th><th>Before (raw export)</th><th>After (Clay + DeepSeek + rules)</th></tr>\n${rows.map(r => `<tr><td>${LABEL[r.f]}</td><td>${bar(r.before, 'before')}</td><td>${bar(r.after, 'after')}</td></tr>`).join('')}\n</table></div>\n\n<h2>SDR handoff (${handoff.length})</h2>\n<div class=\"wrap\"><table><tr><th>Contact</th><th>Company</th><th>Tier</th><th>Why</th><th>Owner</th><th>Stage</th></tr>\n${handoff.map(c => `<tr><td><b>${esc(c.firstname)} ${esc(c.lastname)}</b><br><span class=\"muted\">${esc(c.jobtitle)} · ${esc(c.job_function)} · ${esc(c.seniority)}</span></td>\n<td>${esc(c.company)}<br><span class=\"muted\">${esc(c.company_industry)} · ${esc(SIZE[c.company_size_band] || '')} · ${esc(c.country)}</span></td>\n<td class=\"t t${esc(c.icp_tier)}\">${esc((c.icp_tier || '').toUpperCase())} ${esc(c.icp_score)}</td><td>${esc((c.icp_reason || '').replace(/^[ABC] \\([^)]*\\)\\.\\s*/, ''))}</td>\n<td>${esc(OWNER[c.hubspot_owner_id] || c.hubspot_owner_id)}</td><td>${esc(STAGE[c.lifecyclestage] || c.lifecyclestage)}</td></tr>`).join('')}\n</table></div>\n\n<h2>Dedupe decisions</h2>\n<div class=\"wrap\"><table><tr><th>Contact</th><th>Status</th><th>Reason</th></tr>\n${[...review, ...merged].map(c => `<tr><td>${esc(c.firstname)} ${esc(c.lastname)}<br><span class=\"muted\">${esc(c.company)}</span></td><td>${c.dedupe_status === 'merged' ? 'Merged' : 'Needs review'}</td><td>${esc(c.dedupe_reason)}</td></tr>`).join('')}\n</table></div>\n\n<h2>HubSpot-ready file</h2>\n<a class=\"btn\" download=\"hubspot_ready_${esc(event.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}.csv\" href=\"data:text/csv;charset=utf-8,${encodeURIComponent(csv)}\">Download CSV (${contacts.length} rows)</a>\n</main></body></html>`;\n\nreturn [{ json: { html, contacts: contacts.length, completeness_before: avg('before'), completeness_after: avg('after') } }];\n"
+      },
+      "id": "3fd0d753-f784-593f-8904-6c20313fee99"
+    },
+    {
+      "name": "Return page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        600
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "12cf05dc-be27-5c2f-abd9-5839082ef59c"
+    }
+  ],
+  "connections": {
+    "Upload registrant CSV": {
+      "main": [
+        [
+          {
+            "node": "Parse & clean CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & clean CSV": {
+      "main": [
+        [
+          {
+            "node": "Load CRM contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load CRM contacts": {
+      "main": [
+        [
+          {
+            "node": "Match vs HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match vs HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Create or update contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or update contact": {
+      "main": [
+        [
+          {
+            "node": "Send to Clay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Clay": {
+      "main": [
+        [
+          {
+            "node": "Run summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run summary": {
+      "main": [
+        [
+          {
+            "node": "Show summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clay callback": {
+      "main": [
+        [
+          {
+            "node": "Get contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get contact": {
+      "main": [
+        [
+          {
+            "node": "Build prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build prompt": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek classify": {
+      "main": [
+        [
+          {
+            "node": "Score & route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score & route": {
+      "main": [
+        [
+          {
+            "node": "Find company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find company": {
+      "main": [
+        [
+          {
+            "node": "Create or update company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or update company": {
+      "main": [
+        [
+          {
+            "node": "Update contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update contact": {
+      "main": [
+        [
+          {
+            "node": "Link contact to company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report request": {
+      "main": [
+        [
+          {
+            "node": "Event contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event contacts": {
+      "main": [
+        [
+          {
+            "node": "Build report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build report": {
+      "main": [
+        [
+          {
+            "node": "Return page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

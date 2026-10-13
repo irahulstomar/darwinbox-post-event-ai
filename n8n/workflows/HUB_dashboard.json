@@ -1,0 +1,934 @@
+{
+  "name": "HUB · Post-Event AI dashboard (page + data endpoints)",
+  "nodes": [
+    {
+      "name": "Hub page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "74af3694-bc08-518e-aeab-17c6b2fffbe7",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f9e123f4-cb5d-52d1-b316-1bc005d1dcb1"
+    },
+    {
+      "name": "Return hub page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Post-Event AI Hub</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">\n<script src=\"https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js\"></script>\n<style>\n:root{--bg:#f0f2f5;--card:#fff;--ink:#262626;--ink2:#344767;--muted:#7b809a;--line:#eceff3;--dark:#262626;--green:#43a047;--green-soft:#e8f5e9;\n--red:#e53935;--red-soft:#fdecea;--amber:#fb8c00;--amber-soft:#fff3e0;--blue:#1a73e8;--blue-soft:#e8f0fe;--teal:#00897b;--shadow:0 2px 6px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04)}\n*{box-sizing:border-box}html,body{margin:0}\nbody{background:var(--bg);color:var(--ink2);font-family:'Inter',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}\na{color:inherit}\n.app{display:flex;min-height:100vh}\n/* sidebar */\n.side{position:fixed;inset:16px auto 16px 16px;width:250px;background:#fff;border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;padding:18px 14px;z-index:20}\n.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px;border-bottom:1px solid var(--line);margin-bottom:14px;font-weight:700;color:var(--ink)}\n.brand .logo{width:34px;height:34px;border-radius:9px;background:var(--dark);display:grid;place-items:center;color:#fff}\n.brand small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:-2px}\n.nav a{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;text-decoration:none;color:var(--ink2);font-weight:500;margin-bottom:4px;cursor:pointer}\n.nav a:hover{background:#f5f6f8}.nav a.on{background:var(--dark);color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.18)}\n.nav .sec{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);padding:16px 14px 6px;text-transform:uppercase}\n.nav svg{width:18px;height:18px;flex:0 0 18px}\n.side .foot{margin-top:auto;display:grid;gap:10px}\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:9px;padding:11px 16px;font:600 13.5px 'Inter',sans-serif;text-decoration:none;cursor:pointer;border:1px solid transparent}\n.btn.dark{background:var(--dark);color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.18)}.btn.dark:hover{background:#000}\n.btn.line{background:#fff;border-color:#262626;color:#262626}.btn.line:hover{background:#f5f6f8}\n.btn.sm{padding:7px 12px;font-size:12.5px}\n/* main */\n.main{margin-left:282px;flex:1;padding:20px 28px 40px;min-width:0}\n.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:6px}\n.crumb{color:var(--muted);font-size:14px}.crumb b{color:var(--ink);font-weight:500}\n.top .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}\n.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600}\n.pill.live{background:var(--green-soft);color:#2e7d32}.pill.live i{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}\n.pill.seed{background:var(--amber-soft);color:#b45309}.pill.ai{background:#f3e8ff;color:#7e22ce}\nh1{font-size:28px;font-weight:700;color:var(--ink);margin:22px 0 4px;letter-spacing:-.01em}\n.sub{color:var(--muted);font-size:16px;margin:0 0 24px}\n.grid{display:grid;gap:24px}.k4{grid-template-columns:repeat(4,minmax(0,1fr))}.c3{grid-template-columns:repeat(3,minmax(0,1fr))}\n.c2{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}.c11{grid-template-columns:repeat(2,minmax(0,1fr))}\n.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:20px 22px;min-width:0}\n.kpi{position:relative;padding-bottom:14px}.kpi .lab{color:var(--muted);font-size:15px}.kpi .val{font-size:30px;font-weight:700;color:var(--ink);margin-top:2px;letter-spacing:-.01em}\n.kpi .tile{position:absolute;right:16px;top:-14px;width:58px;height:58px;border-radius:12px;background:var(--dark);display:grid;place-items:center;color:#fff;box-shadow:0 6px 14px rgba(0,0,0,.2)}\n.kpi .tile svg{width:22px;height:22px}.kpi hr{border:0;border-top:1px solid var(--line);margin:14px -22px 12px}\n.kpi .foot{font-size:14.5px;color:var(--muted)}.up{color:var(--green);font-weight:700}.down{color:var(--red);font-weight:700}\n.ct{font-size:17px;font-weight:700;color:var(--ink);margin:0}.cs{color:var(--muted);margin:4px 0 0;font-size:14px}\n.chart{position:relative;height:230px;margin-top:16px}\n.cf{border-top:1px solid var(--line);margin:16px -22px 0;padding:12px 22px 0;color:var(--muted);font-size:13.5px;display:flex;align-items:center;gap:6px}\n.cf svg{width:14px;height:14px}\ntable{width:100%;border-collapse:collapse}\nth{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 10px;border-bottom:1px solid var(--line)}\ntd{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13.5px}\ntr:last-child td{border-bottom:0}.nm{font-weight:600;color:var(--ink)}.mut{color:var(--muted);font-size:12.5px}\n.tw{overflow-x:auto;margin:6px -6px 0}\n.chip{display:inline-block;white-space:nowrap;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;background:#f1f3f6;color:var(--ink2)}\n.tA{background:var(--green-soft);color:#2e7d32}.tB{background:var(--amber-soft);color:#b45309}.tC{background:#eef0f4;color:#5f6b7a}\n.sev-high{background:var(--red-soft);color:#c62828}.sev-medium{background:var(--amber-soft);color:#b45309}.sev-low{background:var(--blue-soft);color:var(--blue)}\n.score{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--ink)}.delta{font-size:11.5px;font-weight:700}\n.bar{height:6px;border-radius:4px;background:#eceff3;overflow:hidden;width:90px;display:inline-block;vertical-align:middle;margin-right:6px}.bar span{display:block;height:100%;background:var(--green)}\n.ai{border:1px solid #efe5fb}.ai .head{display:flex;align-items:center;justify-content:space-between;gap:10px}\n.ai .hl{font-size:18px;font-weight:700;color:var(--ink);margin:14px 0 8px;letter-spacing:-.01em}.ai p{margin:0;color:var(--ink2);font-size:14.5px;line-height:1.65}\n.an{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.an:last-child{border-bottom:0}\n.an .dot{flex:0 0 36px;height:36px;border-radius:10px;display:grid;place-items:center}.an .dot svg{width:18px;height:18px}\n.an h4{margin:0 0 3px;font-size:14.5px;color:var(--ink)}.an p{margin:0;font-size:13.5px;color:var(--ink2)}.an .act{margin-top:6px;font-size:13px;color:var(--teal);font-weight:600}\n.skel{background:linear-gradient(90deg,#f0f2f5 25%,#e6e9ee 37%,#f0f2f5 63%);background-size:400% 100%;animation:sh 1.3s ease infinite;border-radius:6px;height:14px;margin:9px 0}\n@keyframes sh{0%{background-position:100% 50%}100%{background-position:0 50%}}\n.seg{border:1px solid var(--line);border-radius:12px;padding:16px}.seg h4{margin:0 0 2px;font-size:15px;color:var(--ink)}\n.stat{display:flex;gap:18px;margin:12px 0}.stat div{font-size:12px;color:var(--muted)}.stat b{display:block;font-size:20px;color:var(--ink)}\n.subj{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px dashed var(--line);font-size:13.5px}.subj .v{flex:0 0 24px;height:24px;border-radius:6px;background:var(--dark);color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center}\n.gal{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:18px;margin-top:14px}.gal figure{margin:0}.gal img{width:100%;border-radius:10px;border:1px solid var(--line);display:block;background:#f5f6f8;min-height:120px;object-fit:cover}\n.gal figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}\n.doc{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.doc:last-child{border-bottom:0}\n.doc .ic{width:34px;height:34px;border-radius:9px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center}.doc .ic svg{width:17px;height:17px}\n.doc a{margin-left:auto}\n.chk{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:13.5px}.chk b{flex:0 0 auto}\n.run{display:flex;flex-direction:column;gap:10px}.run .ico{width:46px;height:46px;border-radius:12px;background:var(--dark);color:#fff;display:grid;place-items:center}.run .ico svg{width:22px;height:22px}\n.run h3{margin:6px 0 0;font-size:17px;color:var(--ink)}.run p{margin:0;color:var(--muted);font-size:13.5px;flex:1}\n.note{background:var(--amber-soft);color:#7c4a03;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:14px}\n.err{background:var(--red-soft);color:#b71c1c;border-radius:10px;padding:12px 14px}\n.hide{display:none}\n.burger{display:none}\n@media (max-width:1200px){.k4{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:1fr}.c2,.c11{grid-template-columns:1fr}.gal{grid-template-columns:1fr}}\n@media (max-width:860px){.side{transform:translateX(-120%);transition:transform .2s}.side.open{transform:none}.main{margin-left:0;padding:16px}\n.burger{display:inline-flex}.k4{grid-template-columns:1fr}h1{font-size:24px}}\n</style>\n</head>\n<body>\n<div class=\"app\">\n<aside class=\"side\" id=\"side\">\n  <div class=\"brand\"><div class=\"logo\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 19V5m0 14h16M8 15l3-4 3 2 5-6\"/></svg></div>\n    <div>Post-Event AI<small>Webinar automation hub</small></div></div>\n  <nav class=\"nav\" id=\"nav\">\n    <a data-p=\"overview\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/></svg>Lead intelligence</a>\n    <div class=\"sec\">Modules</div>\n    <a data-p=\"leads\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5\"/><path d=\"M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c-.5-2.6-2-4.4-4-5.1\"/></svg>Lead enrichment</a>\n    <a data-p=\"emails\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3.5 6.5 8.5 6 8.5-6\"/></svg>Post-event emails</a>\n    <a data-p=\"content\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><rect x=\"4\" y=\"3\" width=\"16\" height=\"18\" rx=\"2\"/><path d=\"M8 8h8M8 12h8M8 16h5\"/></svg>Content package</a>\n    <div class=\"sec\">Automation</div>\n    <a data-p=\"run\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><path d=\"M7 4v16l13-8z\"/></svg>Run workflows</a>\n  </nav>\n  <div class=\"foot\">\n    <a class=\"btn line\" id=\"docLink\" target=\"_blank\" rel=\"noopener\">How it works</a>\n    <a class=\"btn dark\" id=\"runAll\" target=\"_blank\" rel=\"noopener\">Run everything</a>\n  </div>\n</aside>\n\n<main class=\"main\">\n  <div class=\"top\">\n    <div style=\"display:flex;align-items:center;gap:10px\"><button class=\"btn line sm burger\" onclick=\"document.getElementById('side').classList.toggle('open')\">Menu</button>\n      <div class=\"crumb\">Pages / <b id=\"crumb\">Lead intelligence</b></div></div>\n    <div class=\"right\"><span class=\"pill live\"><i></i>Live from HubSpot</span><span class=\"pill seed hide\" id=\"seedPill\">Engagement history seeded for demo</span>\n      <button class=\"btn line sm\" onclick=\"reload()\">Refresh</button></div>\n  </div>\n\n  <!-- ============ OVERVIEW (M4) ============ -->\n  <section id=\"p-overview\">\n    <h1>Lead intelligence</h1><p class=\"sub\" id=\"ov-sub\">Who is engaging after the webinar, where intent is concentrated, and what to do next.</p>\n    <div class=\"grid k4\" id=\"ov-kpis\"></div>\n    <div class=\"grid c2\" style=\"margin-top:24px\">\n      <div class=\"card ai\"><div class=\"head\"><div><p class=\"ct\">AI summary</p><p class=\"cs\">Regenerated on every page load</p></div><span class=\"pill ai\">DeepSeek</span></div>\n        <div id=\"ai-body\"><div class=\"skel\" style=\"width:70%;height:20px\"></div><div class=\"skel\"></div><div class=\"skel\"></div><div class=\"skel\" style=\"width:85%\"></div><div class=\"skel\" style=\"width:60%\"></div></div>\n        <div class=\"cf\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg><span id=\"ai-time\">analysing…</span></div></div>\n      <div class=\"card\"><p class=\"ct\">Anomalies</p><p class=\"cs\">Statistics flag candidates; AI decides what matters</p><div id=\"an-body\"><div class=\"skel\"></div><div class=\"skel\"></div><div class=\"skel\" style=\"width:70%\"></div></div></div>\n    </div>\n    <div class=\"grid c3\" style=\"margin-top:24px\">\n      <div class=\"card\"><p class=\"ct\">Funnel</p><p class=\"cs\" id=\"fn-sub\">Registered to SQL</p><div class=\"chart\"><canvas id=\"ch-funnel\"></canvas></div><div class=\"cf\" id=\"fn-foot\"></div></div>\n      <div class=\"card\"><p class=\"ct\">Lifecycle movement</p><p class=\"cs\">Stage entries in the last 7, 14 and 30 days</p><div class=\"chart\"><canvas id=\"ch-move\"></canvas></div><div class=\"cf\" id=\"mv-foot\"></div></div>\n      <div class=\"card\"><p class=\"ct\">Engagement</p><p class=\"cs\">Opens, clicks, page views and form fills per day</p><div class=\"chart\"><canvas id=\"ch-eng\"></canvas></div><div class=\"cf\" id=\"en-foot\"></div></div>\n    </div>\n    <div class=\"grid c11\" style=\"margin-top:24px\">\n      <div class=\"card\"><p class=\"ct\">Top engaged accounts</p><p class=\"cs\">Buying committees: 2+ people across 2+ functions</p><div class=\"tw\"><table id=\"acc-t\"></table></div></div>\n      <div class=\"card\"><p class=\"ct\">Top contacts by interest</p><p class=\"cs\">Formula score, adjusted by AI with a reason</p><div class=\"tw\"><table id=\"ct-t\"></table></div></div>\n    </div>\n  </section>\n\n  <!-- ============ LEADS (M1) ============ -->\n  <section id=\"p-leads\" class=\"hide\">\n    <h1>Lead enrichment</h1><p class=\"sub\">Registrant list cleaned, de-duplicated against HubSpot, enriched with Clay + DeepSeek, scored and routed.</p>\n    <div class=\"grid k4\" id=\"ld-kpis\"></div>\n    <div class=\"grid c2\" style=\"margin-top:24px\">\n      <div class=\"card\"><p class=\"ct\">Field completeness</p><p class=\"cs\">Raw export vs after enrichment</p><div class=\"chart\" style=\"height:340px\"><canvas id=\"ch-fields\"></canvas></div></div>\n      <div class=\"grid\" style=\"gap:24px\">\n        <div class=\"card\"><p class=\"ct\">ICP tiers</p><p class=\"cs\">Fit + intent rubric</p><div class=\"chart\" style=\"height:150px\"><canvas id=\"ch-tiers\"></canvas></div></div>\n        <div class=\"card\"><p class=\"ct\">Routing</p><p class=\"cs\">Owner assignment by tier and region</p><div class=\"chart\" style=\"height:150px\"><canvas id=\"ch-owners\"></canvas></div></div>\n      </div>\n    </div>\n    <div class=\"card\" style=\"margin-top:24px\"><div style=\"display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap\"><div><p class=\"ct\">SDR handoff</p><p class=\"cs\">MQLs and Tier A, with the AI's reason</p></div><button class=\"btn dark sm\" onclick=\"downloadCsv()\">Download HubSpot-ready CSV</button></div><div class=\"tw\"><table id=\"ho-t\"></table></div></div>\n    <div class=\"card\" style=\"margin-top:24px\"><p class=\"ct\">Dedupe decisions</p><p class=\"cs\">Exact email, fuzzy name + company, or flagged for review</p><div class=\"tw\"><table id=\"dd-t\"></table></div></div>\n  </section>\n\n  <!-- ============ EMAILS (M2) ============ -->\n  <section id=\"p-emails\" class=\"hide\">\n    <h1>Post-event emails</h1><p class=\"sub\">Three segment emails sent through HubSpot: fact-checked takeaways, persona openers, A/B/C subjects, UTM tracking.</p>\n    <div class=\"grid k4\" id=\"em-kpis\"></div>\n    <div class=\"grid c3\" style=\"margin-top:24px\" id=\"em-segs\"></div>\n    <div class=\"card\" style=\"margin-top:24px\"><p class=\"ct\">Tracking</p><p class=\"cs\">Every link carries UTM parameters per segment and variant</p><div id=\"em-track\" style=\"margin-top:12px\"></div><div class=\"note\" id=\"em-note\"></div></div>\n  </section>\n\n  <!-- ============ CONTENT (M3) ============ -->\n  <section id=\"p-content\" class=\"hide\">\n    <h1>Content package</h1><p class=\"sub\">Generated from the recording: blog, YouTube pack, infographic, social posts and visuals, saved to Google Drive.</p>\n    <div class=\"card\"><div style=\"display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center\"><div><p class=\"ct\" id=\"cp-title\">Latest package</p><p class=\"cs\" id=\"cp-sub\"></p></div><a class=\"btn dark sm\" id=\"cp-folder\" target=\"_blank\" rel=\"noopener\">Open Drive folder</a></div>\n      <div class=\"gal\" id=\"cp-gal\"></div></div>\n    <div class=\"grid c11\" style=\"margin-top:24px\">\n      <div class=\"card\"><p class=\"ct\">Documents</p><p class=\"cs\">Formatted Google Docs, tagged by event</p><div id=\"cp-docs\"></div></div>\n      <div class=\"card\"><p class=\"ct\">Quality checks</p><p class=\"cs\" id=\"cp-guard\"></p><div id=\"cp-checks\"></div></div>\n    </div>\n  </section>\n\n  <!-- ============ RUN ============ -->\n  <section id=\"p-run\" class=\"hide\">\n    <h1>Run workflows</h1><p class=\"sub\">Each module runs on its own from its form, or all together from one form. Tip: choose \"Create drafts only\" to avoid sending emails.</p>\n    <div class=\"grid c11\" id=\"run-cards\"></div>\n  </section>\n</main>\n</div>\n\n<script>\nconst CONFIG = {\n  base: location.origin + '/webhook/',\n  forms: {\n    m1: 'https://YOUR-N8N/form/48b4a71f-ddf2-49db-91fe-71b6c06ebf76', m2: 'https://YOUR-N8N/form/3e44700f-2a07-4cab-bce9-19e664afa9ed', m3: 'https://YOUR-N8N/form/582040b3-b841-4dd9-8124-96f07b074c63', all: 'https://YOUR-N8N/form/1a41c96d-fe88-456c-9038-76114a964c73',\n  },\n  docs: 'https://github.com/irahulstomar',\n};\nconst $ = s => document.querySelector(s);\nconst esc = s => String(s ?? '').replace(/[&<>\"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst fmt = n => Number(n || 0).toLocaleString('en-IN');\nconst ago = iso => { if (!iso) return ''; const s = Math.round((Date.now() - new Date(iso)) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`; };\nconst STAGE = { subscriber: 'Subscriber', lead: 'Lead', marketingqualifiedlead: 'MQL', salesqualifiedlead: 'SQL', other: 'Other' };\nconst ICON = {\n  users: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5\"/></svg>',\n  target: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"4.5\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/></svg>',\n  star: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z\"/></svg>',\n  pulse: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 12h4l3-8 4 16 3-8h4\"/></svg>',\n  check: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m5 12 4.5 4.5L19 7\"/></svg>',\n  merge: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M6 3v6a6 6 0 0 0 6 6h6M15 12l3 3-3 3M6 21v-3\"/></svg>',\n  mail: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3.5 6.5 8.5 6 8.5-6\"/></svg>',\n  click: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"m9 9 11 4-5 1.5L13.5 20z\"/><path d=\"M5 3v3M3 5h3M9 2.5l-.5 2\"/></svg>',\n  eye: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>',\n  doc: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2\"/><path d=\"M9 8h6M9 12h6M9 16h4\"/></svg>',\n  alert: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 3 2 20h20z\"/><path d=\"M12 10v4M12 17v.5\"/></svg>',\n  clock: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>',\n  upload: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3\"/></svg>',\n  play: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M7 4v16l13-8z\"/></svg>',\n};\nconst kpi = (lab, val, icon, foot) => `<div class=\"card kpi\"><div class=\"lab\">${esc(lab)}</div><div class=\"val\">${val}</div><div class=\"tile\">${ICON[icon]}</div><hr><div class=\"foot\">${foot}</div></div>`;\nconst tier = t => t ? `<span class=\"chip t${esc(t)}\">Tier ${esc(t)}</span>` : '';\nconst clockFoot = (el, text) => { el.innerHTML = ICON.clock + `<span>${esc(text)}</span>`; };\nconst charts = {};\nChart.defaults.font.family = \"'Inter', system-ui, sans-serif\"; Chart.defaults.color = '#7b809a'; Chart.defaults.font.size = 12;\nconst grid = { color: '#eef0f3', drawTicks: false }, noGrid = { display: false };\nfunction chart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }\nasync function get(path) { const r = await fetch(CONFIG.base + path, { cache: 'no-store' }); if (!r.ok) throw new Error(path + ' → HTTP ' + r.status); return r.json(); }\nconst cache = {};\n\n/* ---------------- overview ---------------- */\nasync function overview() {\n  const m = cache.m4 = cache.m4 || await get('hub-m4');\n  $('#seedPill').classList.toggle('hide', !m.seeded);\n  $('#ov-sub').textContent = `${m.event}. Who is engaging after the webinar, where intent is concentrated, and what to do next.`;\n  const k = m.kpis;\n  $('#ov-kpis').innerHTML =\n    kpi('Registrants', fmt(k.registrants), 'users', `<span class=\"up\">${k.attendance_rate}%</span> attended live`) +\n    kpi('Attendee to MQL', k.attendee_to_mql + '%', 'target', `<span class=\"up\">${fmt(k.mqls)}</span> MQLs created`) +\n    kpi('Sales-qualified', fmt(k.sqls), 'star', `<span class=\"up\">${fmt(k.tier_a)}</span> Tier A contacts`) +\n    kpi('Engagement today', fmt(m.engagement_today), 'pulse', m.engagement_prev_avg ? `<span class=\"${m.engagement_today >= m.engagement_prev_avg ? 'up' : 'down'}\">${(m.engagement_today / m.engagement_prev_avg).toFixed(1)}×</span> the 30-day daily average` : 'actions today');\n  chart('ch-funnel', { type: 'bar', data: { labels: m.funnel.map(f => f.label), datasets: [{ data: m.funnel.map(f => f.value), backgroundColor: '#43a047', borderRadius: 6, maxBarThickness: 46 }] },\n    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: noGrid }, y: { grid, border: { display: false } } } } });\n  clockFoot($('#fn-foot'), `${k.attendee_to_mql}% of attendees became MQLs`);\n  chart('ch-move', { type: 'bar', data: { labels: m.movement.map(r => `Last ${r.window} days`), datasets: [\n      { label: 'New leads', data: m.movement.map(r => r.lead), backgroundColor: '#90caf9', borderRadius: 5 },\n      { label: 'New MQLs', data: m.movement.map(r => r.marketingqualifiedlead), backgroundColor: '#43a047', borderRadius: 5 },\n      { label: 'New SQLs', data: m.movement.map(r => r.salesqualifiedlead), backgroundColor: '#262626', borderRadius: 5 }] },\n    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } } }, scales: { x: { grid: noGrid }, y: { grid, border: { display: false } } } } });\n  clockFoot($('#mv-foot'), 'from HubSpot stage history');\n  const tl = m.timeline;\n  chart('ch-eng', { type: 'line', data: { labels: tl.map(t => t.date.slice(5)), datasets: [{ data: tl.map(t => t.open + t.click + t.page_view + t.form_fill), borderColor: '#43a047', backgroundColor: 'rgba(67,160,71,.08)', fill: true, tension: .35, pointRadius: 3, pointBackgroundColor: '#43a047' }] },\n    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: noGrid, ticks: { maxTicksLimit: 7 } }, y: { grid, border: { display: false } } } } });\n  clockFoot($('#en-foot'), 'updated ' + ago(m.generated_at));\n  $('#acc-t').innerHTML = `<tr><th>Account</th><th>People</th><th>Score</th></tr>` + m.accounts.slice(0, 6).map(a => `<tr>\n    <td><div class=\"nm\">${esc(a.name)}</div><div class=\"mut\">${esc(a.industry || '')}${a.country ? ' · ' + esc(a.country) : ''}</div>\n      ${a.committee ? '<span class=\"chip tA\">Buying committee</span>' : ''}${a.members.slice(0, 4).map(x => `<span class=\"chip\">${esc(x.function || x.title)}${x.seniority ? ' · ' + esc(x.seniority) : ''}</span>`).join('')}</td>\n    <td>${a.contacts}</td><td><span class=\"bar\"><span style=\"width:${Math.min(100, a.score / (m.accounts[0].score || 1) * 100)}%\"></span></span><b>${a.score}</b></td></tr>`).join('');\n  renderContacts(m.top_contacts.map(p => ({ ...p, interest_score: p.base_score, ai_delta: null })));\n  ai();\n}\nfunction renderContacts(list) {\n  $('#ct-t').innerHTML = `<tr><th>Contact</th><th>Interest</th><th>Why</th></tr>` + list.slice(0, 8).map(p => `<tr>\n    <td><div class=\"nm\">${esc(p.name)}</div><div class=\"mut\">${esc(p.title)} · ${esc(p.company)}</div>${tier(p.tier)}<span class=\"chip\">${esc(STAGE[p.stage] || p.stage)}</span></td>\n    <td><span class=\"score\">${p.interest_score}${p.ai_delta ? `<span class=\"delta ${p.ai_delta > 0 ? 'up' : 'down'}\">${p.ai_delta > 0 ? '+' : ''}${p.ai_delta}</span>` : ''}</span><div class=\"mut\">base ${p.base_score}</div></td>\n    <td class=\"mut\">${esc(p.ai_reason || (p.ai_delta === null ? 'AI review loading…' : ''))}</td></tr>`).join('');\n}\nasync function ai() {\n  try {\n    const a = await get('hub-m4-ai');\n    $('#ai-body').innerHTML = `<div class=\"hl\">${esc(a.headline)}</div><p>${esc(a.narrative)}</p>` + (a.checks && a.checks.unknown_numbers_in_narrative && a.checks.unknown_numbers_in_narrative.length ? `<div class=\"note\">Number check: ${esc(a.checks.unknown_numbers_in_narrative.join(', '))} not found in the data</div>` : '');\n    $('#ai-time').textContent = `generated ${ago(a.generated_at)} · ${a.model} · numbers checked against the data`;\n    $('#an-body').innerHTML = (a.anomalies || []).map(x => `<div class=\"an\"><div class=\"dot sev-${esc(x.severity)}\">${ICON.alert}</div><div>\n      <h4>${esc(x.title)} <span class=\"chip sev-${esc(x.severity)}\">${esc(x.severity)}</span></h4><p>${esc(x.explanation)}</p><div class=\"act\">→ ${esc(x.action)}</div></div></div>`).join('') || '<p class=\"mut\">No anomalies today.</p>';\n    renderContacts(a.top_contacts);\n  } catch (e) { $('#ai-body').innerHTML = `<div class=\"err\">AI summary unavailable: ${esc(e.message)}</div>`; $('#an-body').innerHTML = ''; }\n}\n\n/* ---------------- leads (M1) ---------------- */\nasync function leads() {\n  const d = cache.m1 = cache.m1 || await get('hub-m1');\n  const k = d.kpis;\n  $('#ld-kpis').innerHTML =\n    kpi('Data completeness', k.after + '%', 'check', `<span class=\"up\">+${k.after - k.before} pts</span> from ${k.before}% raw`) +\n    kpi('Merged with CRM', fmt(k.merged), 'merge', `<span class=\"${k.review ? 'down' : 'up'}\">${k.review}</span> flagged for review`) +\n    kpi('ICP tier A / B / C', `${k.tier_a} / ${k.tier_b} / ${k.tier_c}`, 'star', `<span class=\"up\">${fmt(k.mqls)}</span> MQLs routed to SDRs`) +\n    kpi('AI-inferred values', fmt(k.inferred_values), 'pulse', 'each logged with a confidence');\n  chart('ch-fields', { type: 'bar', data: { labels: d.fields.map(f => f.field), datasets: [\n      { label: 'Raw export', data: d.fields.map(f => f.before), backgroundColor: '#cfd8dc', borderRadius: 4 },\n      { label: 'After enrichment', data: d.fields.map(f => f.after), backgroundColor: '#43a047', borderRadius: 4 }] },\n    options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } } }, scales: { x: { max: 100, grid, border: { display: false }, ticks: { callback: v => v + '%' } }, y: { grid: noGrid } } } });\n  chart('ch-tiers', { type: 'doughnut', data: { labels: ['Tier A', 'Tier B', 'Tier C'], datasets: [{ data: [k.tier_a, k.tier_b, k.tier_c], backgroundColor: ['#43a047', '#fb8c00', '#b0bec5'], borderWidth: 0 }] },\n    options: { maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } } } } });\n  const own = Object.entries(d.owners).sort((a, b) => b[1] - a[1]);\n  chart('ch-owners', { type: 'bar', data: { labels: own.map(o => o[0]), datasets: [{ data: own.map(o => o[1]), backgroundColor: '#262626', borderRadius: 5, maxBarThickness: 18 }] },\n    options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid, border: { display: false } }, y: { grid: noGrid } } } });\n  $('#ho-t').innerHTML = `<tr><th>Contact</th><th>Company</th><th>Tier</th><th>Why</th><th>Owner</th><th>Stage</th></tr>` + d.handoff.map(p => `<tr>\n    <td><div class=\"nm\">${esc(p.name)}</div><div class=\"mut\">${esc(p.title)} · ${esc(p.function)} · ${esc(p.seniority)}</div></td>\n    <td>${esc(p.company)}<div class=\"mut\">${esc(p.industry || '')}${p.country ? ' · ' + esc(p.country) : ''}</div></td>\n    <td>${tier(p.tier)}<div class=\"mut\">${p.score}/100</div></td><td class=\"mut\" style=\"max-width:360px\">${esc(p.reason)}</td><td>${esc(p.owner)}</td><td><span class=\"chip\">${esc(STAGE[p.stage] || p.stage)}</span></td></tr>`).join('');\n  $('#dd-t').innerHTML = `<tr><th>Contact</th><th>Decision</th><th>Reason</th></tr>` + d.dedupe.map(p => `<tr>\n    <td><div class=\"nm\">${esc(p.name)}</div><div class=\"mut\">${esc(p.company)}</div></td>\n    <td><span class=\"chip ${p.dedupe === 'merged' ? 'tA' : 'tB'}\">${p.dedupe === 'merged' ? 'Merged' : 'Needs review'}</span></td><td class=\"mut\">${esc(p.dedupe_reason)}</td></tr>`).join('');\n}\nfunction downloadCsv() {\n  const rows = (cache.m1 || {}).rows || []; if (!rows.length) return;\n  const cols = ['name', 'title', 'company', 'country', 'function', 'seniority', 'industry', 'size', 'tier', 'score', 'owner', 'stage', 'dedupe'];\n  const csv = [cols.join(','), ...rows.map(r => cols.map(c => `\"${String(r[c] ?? '').replace(/\"/g, '\"\"')}\"`).join(','))].join('\\n');\n  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'hubspot_ready_contacts.csv'; a.click();\n}\n\n/* ---------------- emails (M2) ---------------- */\nasync function emails() {\n  const d = cache.m2 = cache.m2 || await get('hub-m2');\n  const t = d.totals;\n  $('#em-kpis').innerHTML =\n    kpi('Recipients', fmt(t.recipients), 'users', `3 segments · sent ${d.sent_at ? ago(d.sent_at) : ''}`) +\n    kpi('Delivered', fmt(t.delivered), 'mail', `<span class=\"down\">${fmt(t.dropped)}</span> held by test-account rule`) +\n    kpi('Opens', fmt(t.opens), 'eye', 'tracked by HubSpot') +\n    kpi('Clicks', fmt(t.clicks), 'click', 'UTM-tagged links');\n  $('#em-segs').innerHTML = d.segments.map(s => `<div class=\"card seg\"><h4>${esc(s.label)}</h4><div class=\"mut\">${s.recipients} contacts · HubSpot email ${esc(s.email_id)}</div>\n    <div class=\"stat\"><div><b>${s.delivered}</b>delivered</div><div><b>${s.opens}</b>opens</div><div><b>${s.clicks}</b>clicks</div></div>\n    ${s.subjects.map(x => `<div class=\"subj\"><span class=\"v\">${esc(x.variant)}</span><div>${esc(x.subject)}<div class=\"mut\">${x.contacts} contacts</div></div></div>`).join('')}\n    ${Object.keys(s.personas).length ? `<div style=\"margin-top:8px\">${Object.entries(s.personas).map(([p, n]) => `<span class=\"chip\">${esc(p.replace(/_/g, ' '))} · ${n}</span>`).join('')}</div>` : ''}\n    ${s.sample_opening_line ? `<div class=\"mut\" style=\"margin-top:10px\"><b>Persona opener sample:</b> ${esc(s.sample_opening_line)}</div>` : ''}</div>`).join('');\n  $('#em-track').innerHTML = `<div><span class=\"chip\">utm_campaign</span> ${esc(d.utm_campaign)}</div><div class=\"mut\" style=\"margin-top:8px;word-break:break-all\">${esc(d.sample_tracked_link)}</div>`;\n  $('#em-note').textContent = d.note;\n}\n\n/* ---------------- content (M3) ---------------- */\nasync function content() {\n  const d = cache.m3 = cache.m3 || await get('hub-m3');\n  if (!d.found) { $('#cp-sub').textContent = 'No content package found yet. Run M3 first.'; return; }\n  $('#cp-title').textContent = d.folder.name; $('#cp-sub').textContent = `${d.counts}${d.chapters ? ' · ' + d.chapters : ''}`; $('#cp-folder').href = d.folder.url;\n  const cap = { thumbnail: 'YouTube thumbnail', infographic: 'Infographic poster', linkedin: 'LinkedIn visual' };\n  $('#cp-gal').innerHTML = d.images.map(i => `<figure><a href=\"${esc(i.url)}\" target=\"_blank\" rel=\"noopener\"><img loading=\"lazy\" src=\"${CONFIG.base + i.preview}\" alt=\"${esc(i.name)}\"></a>\n    <figcaption>${esc(Object.entries(cap).find(([k]) => i.name.toLowerCase().includes(k)) ? Object.entries(cap).find(([k]) => i.name.toLowerCase().includes(k))[1] : i.name)}</figcaption></figure>`).join('');\n  $('#cp-docs').innerHTML = d.docs.map(f => `<div class=\"doc\"><div class=\"ic\">${ICON.doc}</div><div><div class=\"nm\">${esc(f.name.replace(/\\.html$/, ' (HTML)'))}</div><div class=\"mut\">${f.kind === 'html' ? 'Data-accurate HTML' : f.kind === 'note' ? 'Note' : 'Google Doc'}</div></div>\n    <a class=\"btn line sm\" href=\"${esc(f.url)}\" target=\"_blank\" rel=\"noopener\">Open</a></div>`).join('');\n  $('#cp-guard').textContent = d.guard ? 'Fact guard: ' + d.guard : '';\n  $('#cp-checks').innerHTML = d.checks.map(c => `<div class=\"chk\"><b class=\"chip ${c.pass ? 'tA' : 'tB'}\">${c.pass ? 'PASS' : 'CHECK'}</b><span>${esc(c.text)}</span></div>`).join('');\n}\n\n/* ---------------- run ---------------- */\nfunction run() {\n  const card = (icon, title, text, url, label) => `<div class=\"card run\"><div class=\"ico\">${ICON[icon]}</div><h3>${title}</h3><p>${text}</p><div><a class=\"btn dark\" href=\"${url}\" target=\"_blank\" rel=\"noopener\">${label}</a></div></div>`;\n  $('#run-cards').innerHTML =\n    card('play', 'Run everything', 'One form: registrant CSV + recording. Runs lead enrichment, waits for enrichment, then builds the content package and the post-event emails.', CONFIG.forms.all, 'Open master form') +\n    card('upload', 'Module 1 · Lead enrichment', 'Upload a Zoom / GoTo / ON24 export. Cleans, dedupes against HubSpot, enriches with Clay + DeepSeek, scores ICP, routes to SDRs.', CONFIG.forms.m1, 'Upload registrants') +\n    card('mail', 'Module 2 · Post-event emails', 'Transcribes the recording, extracts fact-checked takeaways, writes and sends 3 segment emails through HubSpot.', CONFIG.forms.m2, 'Send follow-ups') +\n    card('doc', 'Module 3 · Content package', 'Turns the recording into a blog, YouTube pack, infographic, social posts and visuals in Google Drive.', CONFIG.forms.m3, 'Build content');\n}\n\n/* ---------------- router ---------------- */\nconst PAGES = { overview: ['Lead intelligence', overview], leads: ['Lead enrichment', leads], emails: ['Post-event emails', emails], content: ['Content package', content], run: ['Run workflows', run] };\nasync function show(p) {\n  if (!PAGES[p]) p = 'overview';\n  document.querySelectorAll('section').forEach(s => s.classList.toggle('hide', s.id !== 'p-' + p));\n  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.p === p));\n  $('#crumb').textContent = PAGES[p][0]; $('#side').classList.remove('open');\n  try { await PAGES[p][1](); } catch (e) { $('#p-' + p).insertAdjacentHTML('beforeend', `<div class=\"err\" style=\"margin-top:20px\">Could not load data: ${esc(e.message)}</div>`); }\n}\nfunction reload() { Object.keys(cache).forEach(k => delete cache[k]); show(location.hash.slice(1)); }\ndocument.querySelectorAll('#nav a').forEach(a => a.addEventListener('click', () => { location.hash = a.dataset.p; }));\nwindow.addEventListener('hashchange', () => show(location.hash.slice(1)));\n$('#runAll').href = CONFIG.forms.all; $('#docLink').href = CONFIG.docs;\nshow(location.hash.slice(1));\n</script>\n</body>\n</html>\n",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a4f0a117-6fdf-5e5d-9c4b-9004aa448b82"
+    },
+    {
+      "name": "M4 data request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "7f324fca-07bc-57be-898a-379cd8b262ea",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-m4",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b7ced2a9-b9e5-5665-ba3d-1bc0bc5e62aa"
+    },
+    {
+      "name": "M4 contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 200, \"properties\": [\"firstname\", \"lastname\", \"email\", \"jobtitle\", \"company\", \"country\", \"event_attendance_status\", \"time_in_session_min\", \"questions_asked\", \"job_function\", \"seniority\", \"company_industry\", \"icp_tier\", \"icp_score\", \"lifecyclestage\", \"engagement_log\", \"lifecycle_history\", \"engagement_source\", \"last_engaged_at\"], \"filterGroups\": [{\"filters\": [{\"propertyName\": \"event_name\", \"operator\": \"EQ\", \"value\": \"Darwinbox Cortex and the AI-Native Era of HCM\"}]}]}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "6fdfde31-2a63-5889-a14d-04b4cfb8381c"
+    },
+    {
+      "name": "M4 metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M4 metrics from HubSpot event contacts: KPIs, funnel, interest scores, accounts + buying committees,\n// lifecycle movement (7/14/30 days), daily engagement, and statistical anomaly candidates for the AI to judge.\n\nconst EVENT = 'Darwinbox Cortex and the AI-Native Era of HCM';\nconst DAY = 86400000;\nconst today = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');\nconst dayStr = d => new Date(d).toISOString().slice(0, 10);\nconst daysAgo = s => Math.round((today - new Date(s + 'T00:00:00Z')) / DAY);\nconst parse = (s, fb) => { try { return JSON.parse(s || ''); } catch (e) { return fb; } };\nconst normOrg = s => String(s || '').toLowerCase().replace(/['’.]/g, '').replace(/&/g, ' and ')\n  .replace(/[^a-z0-9 ]/g, ' ').replace(/\\b(ltd|limited|pvt|private|inc|corp|corporation|co|plc|llc|holding|holdings|group|bank|e retail)\\b/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst all = $input.all().flatMap(i => i.json.results || []).map(r => ({ id: r.id, ...r.properties }));\nconst audience = all.filter(c => c.event_attendance_status !== 'speaker');\nconst isAtt = c => c.event_attendance_status === 'attended';\nconst stageRank = { subscriber: 0, lead: 1, marketingqualifiedlead: 2, salesqualifiedlead: 3, opportunity: 4, customer: 5 };\nconst atLeastMql = c => (stageRank[c.lifecyclestage] ?? -1) >= 2;\n\n// ---------- per-contact signals + interest score ----------\nconst eventDay = (() => { const d = audience.map(c => parse(c.lifecycle_history, []).find(h => h.stage === 'marketingqualifiedlead')).filter(Boolean).map(h => h.date).sort(); return d[0] || dayStr(today - DAY); })();\nconst people = audience.map(c => {\n  const log = parse(c.engagement_log, []);\n  const post = log.filter(e => e.d >= eventDay && !/registration/.test(e.s || ''));\n  const n = t => post.filter(e => e.t === t).length;\n  const last = log.length ? log[log.length - 1].d : null;\n  const signals = { opens: n('open'), clicks: n('click'), page_views: n('page_view'), form_fills: n('form_fill'),\n    pricing_views: post.filter(e => /pricing/.test(e.s || '')).length, demo_request: post.some(e => /demo request/.test(e.s || '')) };\n  let base = (isAtt(c) ? 20 : 0) + Math.min(Number(c.time_in_session_min || 0), 40) / 2 + Number(c.questions_asked || 0) * 6\n    + signals.opens * 3 + signals.clicks * 8 + signals.page_views * 4 + signals.form_fills * 15 + signals.pricing_views * 4;\n  const idle = last ? Math.max(0, daysAgo(last)) : 30;\n  base = Math.round(Math.min(100, base * (1 - Math.min(idle, 30) / 45)));\n  return { id: c.id, name: `${c.firstname || ''} ${c.lastname || ''}`.trim(), title: c.jobtitle || '', company: c.company || '',\n    account: normOrg(c.company), function: c.job_function || '', seniority: c.seniority || '', tier: (c.icp_tier || '').toUpperCase(),\n    stage: c.lifecyclestage || '', attendance: c.event_attendance_status, minutes: Number(c.time_in_session_min || 0),\n    questions: Number(c.questions_asked || 0), industry: c.company_industry || '', country: c.country || '',\n    signals, base_score: base, last_engaged: last, seeded: c.engagement_source === 'seeded_demo', log };\n});\n\n// ---------- KPIs + funnel ----------\nconst attended = people.filter(p => p.attendance === 'attended');\nconst mqlPlus = people.filter(p => (stageRank[p.stage] ?? -1) >= 2);\nconst kpis = {\n  registrants: people.length, attended: attended.length, no_shows: people.length - attended.length,\n  attendance_rate: Math.round(100 * attended.length / Math.max(1, people.length)),\n  mqls: mqlPlus.length, sqls: people.filter(p => (stageRank[p.stage] ?? -1) >= 3).length,\n  attendee_to_mql: Math.round(100 * attended.filter(p => (stageRank[p.stage] ?? -1) >= 2).length / Math.max(1, attended.length)),\n  avg_interest: Math.round(people.reduce((s, p) => s + p.base_score, 0) / Math.max(1, people.length)),\n  tier_a: people.filter(p => p.tier === 'A').length,\n};\nconst funnel = [\n  { label: 'Registered', value: kpis.registrants }, { label: 'Attended', value: kpis.attended },\n  { label: 'MQL', value: kpis.mqls }, { label: 'SQL', value: kpis.sqls },\n];\n\n// ---------- lifecycle movement: stage entries within 7 / 14 / 30 days ----------\nconst movement = [7, 14, 30].map(w => {\n  const row = { window: w, lead: 0, marketingqualifiedlead: 0, salesqualifiedlead: 0 };\n  audience.forEach(c => parse(c.lifecycle_history, []).forEach(h => { if (h.date && daysAgo(h.date) <= w && row[h.stage] !== undefined) row[h.stage]++; }));\n  return row;\n});\n\n// ---------- daily engagement (last 30 days) ----------\nconst days = Array.from({ length: 30 }, (_, i) => dayStr(today - (29 - i) * DAY));\nconst timeline = days.map(d => {\n  const t = { date: d, open: 0, click: 0, page_view: 0, form_fill: 0 };\n  people.forEach(p => p.log.forEach(e => { if (e.d === d && t[e.t] !== undefined) t[e.t]++; }));\n  return t;\n});\n\n// ---------- accounts + buying committees ----------\nconst accMap = {};\npeople.forEach(p => { (accMap[p.account] = accMap[p.account] || []).push(p); });\nconst accounts = Object.entries(accMap).map(([key, ps]) => {\n  const names = {}; ps.forEach(p => { names[p.company] = (names[p.company] || 0) + 1; });\n  const fns = [...new Set(ps.map(p => p.function).filter(f => f && f !== 'Other'))];\n  return { key, name: Object.entries(names).sort((a, b) => b[1] - a[1])[0][0], industry: ps[0].industry, country: ps[0].country,\n    score: ps.reduce((s, p) => s + p.base_score, 0), contacts: ps.length, functions: fns,\n    committee: ps.length >= 2 && fns.length >= 2,\n    members: ps.sort((a, b) => b.base_score - a.base_score).map(p => ({ name: p.name, title: p.title, function: p.function, seniority: p.seniority, tier: p.tier, score: p.base_score, stage: p.stage })) };\n}).sort((a, b) => b.score - a.score);\n\n// ---------- anomaly candidates (statistics only; the AI decides what matters) ----------\nconst candidates = [];\nconst todayStr = dayStr(today);\naccounts.forEach(a => {\n  const counts = days.map(d => accMap[a.key].reduce((s, p) => s + p.log.filter(e => e.d === d).length, 0));\n  const prior = counts.slice(0, -1), mean = prior.reduce((s, x) => s + x, 0) / prior.length;\n  const sd = Math.sqrt(prior.reduce((s, x) => s + (x - mean) ** 2, 0) / prior.length) || 0.5;\n  const z = (counts[counts.length - 1] - mean) / sd;\n  const activeToday = accMap[a.key].filter(p => p.log.some(e => e.d === todayStr)).length;\n  if (z >= 2.5 && counts[counts.length - 1] >= 4) candidates.push({ type: 'account_spike', account: a.name, actions_today: counts[counts.length - 1], baseline_per_day: +mean.toFixed(2), z: +z.toFixed(1), people_active_today: activeToday, contacts: a.contacts });\n});\npeople.filter(p => p.attendance === 'attended' && p.tier === 'A' && (stageRank[p.stage] ?? -1) >= 2 && p.signals.opens + p.signals.clicks + p.signals.page_views + p.signals.form_fills === 0)\n  .forEach(p => candidates.push({ type: 'silent_high_fit', contact: p.name, title: p.title, company: p.company, minutes: p.minutes, questions: p.questions, actions_since_event: 0 }));\npeople.filter(p => p.attendance === 'no_show' && p.signals.clicks + p.signals.page_views + p.signals.form_fills >= 3)\n  .forEach(p => candidates.push({ type: 'no_show_high_intent', contact: p.name, title: p.title, company: p.company, pricing_views: p.signals.pricing_views, form_fills: p.signals.form_fills, actions_since_event: p.signals.clicks + p.signals.page_views + p.signals.form_fills }));\nconst todayTotal = timeline[timeline.length - 1], prev = timeline.slice(0, -1);\nconst prevAvg = prev.reduce((s, t) => s + t.open + t.click + t.page_view + t.form_fill, 0) / prev.length;\nconst todaySum = todayTotal.open + todayTotal.click + todayTotal.page_view + todayTotal.form_fill;\n\nconst top = [...people].sort((a, b) => b.base_score - a.base_score).slice(0, 12).map(({ log, ...p }) => p);\nreturn [{ json: {\n  event: EVENT, generated_at: new Date().toISOString(), seeded: people.some(p => p.seeded),\n  kpis, funnel, movement, timeline, engagement_today: todaySum, engagement_prev_avg: +prevAvg.toFixed(1),\n  accounts: accounts.slice(0, 8), top_contacts: top, candidates,\n} }];\n"
+      },
+      "id": "8db96d2b-45af-540f-9e25-4810b47ed402"
+    },
+    {
+      "name": "Return M4 data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "16a7af5f-b67d-558b-a0ad-091cac4870e3"
+    },
+    {
+      "name": "M4 AI request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "8e5bf7e8-069a-576b-bd97-ad8888e95cd5",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-m4-ai",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "51270010-0c11-53e0-b68e-bc7e0b2b36fd"
+    },
+    {
+      "name": "M4 AI contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 200, \"properties\": [\"firstname\", \"lastname\", \"email\", \"jobtitle\", \"company\", \"country\", \"event_attendance_status\", \"time_in_session_min\", \"questions_asked\", \"job_function\", \"seniority\", \"company_industry\", \"icp_tier\", \"icp_score\", \"lifecyclestage\", \"engagement_log\", \"lifecycle_history\", \"engagement_source\", \"last_engaged_at\"], \"filterGroups\": [{\"filters\": [{\"propertyName\": \"event_name\", \"operator\": \"EQ\", \"value\": \"Darwinbox Cortex and the AI-Native Era of HCM\"}]}]}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "5286ae1b-149c-5414-a846-25134d223117"
+    },
+    {
+      "name": "M4 AI metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M4 metrics from HubSpot event contacts: KPIs, funnel, interest scores, accounts + buying committees,\n// lifecycle movement (7/14/30 days), daily engagement, and statistical anomaly candidates for the AI to judge.\n\nconst EVENT = 'Darwinbox Cortex and the AI-Native Era of HCM';\nconst DAY = 86400000;\nconst today = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');\nconst dayStr = d => new Date(d).toISOString().slice(0, 10);\nconst daysAgo = s => Math.round((today - new Date(s + 'T00:00:00Z')) / DAY);\nconst parse = (s, fb) => { try { return JSON.parse(s || ''); } catch (e) { return fb; } };\nconst normOrg = s => String(s || '').toLowerCase().replace(/['’.]/g, '').replace(/&/g, ' and ')\n  .replace(/[^a-z0-9 ]/g, ' ').replace(/\\b(ltd|limited|pvt|private|inc|corp|corporation|co|plc|llc|holding|holdings|group|bank|e retail)\\b/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst all = $input.all().flatMap(i => i.json.results || []).map(r => ({ id: r.id, ...r.properties }));\nconst audience = all.filter(c => c.event_attendance_status !== 'speaker');\nconst isAtt = c => c.event_attendance_status === 'attended';\nconst stageRank = { subscriber: 0, lead: 1, marketingqualifiedlead: 2, salesqualifiedlead: 3, opportunity: 4, customer: 5 };\nconst atLeastMql = c => (stageRank[c.lifecyclestage] ?? -1) >= 2;\n\n// ---------- per-contact signals + interest score ----------\nconst eventDay = (() => { const d = audience.map(c => parse(c.lifecycle_history, []).find(h => h.stage === 'marketingqualifiedlead')).filter(Boolean).map(h => h.date).sort(); return d[0] || dayStr(today - DAY); })();\nconst people = audience.map(c => {\n  const log = parse(c.engagement_log, []);\n  const post = log.filter(e => e.d >= eventDay && !/registration/.test(e.s || ''));\n  const n = t => post.filter(e => e.t === t).length;\n  const last = log.length ? log[log.length - 1].d : null;\n  const signals = { opens: n('open'), clicks: n('click'), page_views: n('page_view'), form_fills: n('form_fill'),\n    pricing_views: post.filter(e => /pricing/.test(e.s || '')).length, demo_request: post.some(e => /demo request/.test(e.s || '')) };\n  let base = (isAtt(c) ? 20 : 0) + Math.min(Number(c.time_in_session_min || 0), 40) / 2 + Number(c.questions_asked || 0) * 6\n    + signals.opens * 3 + signals.clicks * 8 + signals.page_views * 4 + signals.form_fills * 15 + signals.pricing_views * 4;\n  const idle = last ? Math.max(0, daysAgo(last)) : 30;\n  base = Math.round(Math.min(100, base * (1 - Math.min(idle, 30) / 45)));\n  return { id: c.id, name: `${c.firstname || ''} ${c.lastname || ''}`.trim(), title: c.jobtitle || '', company: c.company || '',\n    account: normOrg(c.company), function: c.job_function || '', seniority: c.seniority || '', tier: (c.icp_tier || '').toUpperCase(),\n    stage: c.lifecyclestage || '', attendance: c.event_attendance_status, minutes: Number(c.time_in_session_min || 0),\n    questions: Number(c.questions_asked || 0), industry: c.company_industry || '', country: c.country || '',\n    signals, base_score: base, last_engaged: last, seeded: c.engagement_source === 'seeded_demo', log };\n});\n\n// ---------- KPIs + funnel ----------\nconst attended = people.filter(p => p.attendance === 'attended');\nconst mqlPlus = people.filter(p => (stageRank[p.stage] ?? -1) >= 2);\nconst kpis = {\n  registrants: people.length, attended: attended.length, no_shows: people.length - attended.length,\n  attendance_rate: Math.round(100 * attended.length / Math.max(1, people.length)),\n  mqls: mqlPlus.length, sqls: people.filter(p => (stageRank[p.stage] ?? -1) >= 3).length,\n  attendee_to_mql: Math.round(100 * attended.filter(p => (stageRank[p.stage] ?? -1) >= 2).length / Math.max(1, attended.length)),\n  avg_interest: Math.round(people.reduce((s, p) => s + p.base_score, 0) / Math.max(1, people.length)),\n  tier_a: people.filter(p => p.tier === 'A').length,\n};\nconst funnel = [\n  { label: 'Registered', value: kpis.registrants }, { label: 'Attended', value: kpis.attended },\n  { label: 'MQL', value: kpis.mqls }, { label: 'SQL', value: kpis.sqls },\n];\n\n// ---------- lifecycle movement: stage entries within 7 / 14 / 30 days ----------\nconst movement = [7, 14, 30].map(w => {\n  const row = { window: w, lead: 0, marketingqualifiedlead: 0, salesqualifiedlead: 0 };\n  audience.forEach(c => parse(c.lifecycle_history, []).forEach(h => { if (h.date && daysAgo(h.date) <= w && row[h.stage] !== undefined) row[h.stage]++; }));\n  return row;\n});\n\n// ---------- daily engagement (last 30 days) ----------\nconst days = Array.from({ length: 30 }, (_, i) => dayStr(today - (29 - i) * DAY));\nconst timeline = days.map(d => {\n  const t = { date: d, open: 0, click: 0, page_view: 0, form_fill: 0 };\n  people.forEach(p => p.log.forEach(e => { if (e.d === d && t[e.t] !== undefined) t[e.t]++; }));\n  return t;\n});\n\n// ---------- accounts + buying committees ----------\nconst accMap = {};\npeople.forEach(p => { (accMap[p.account] = accMap[p.account] || []).push(p); });\nconst accounts = Object.entries(accMap).map(([key, ps]) => {\n  const names = {}; ps.forEach(p => { names[p.company] = (names[p.company] || 0) + 1; });\n  const fns = [...new Set(ps.map(p => p.function).filter(f => f && f !== 'Other'))];\n  return { key, name: Object.entries(names).sort((a, b) => b[1] - a[1])[0][0], industry: ps[0].industry, country: ps[0].country,\n    score: ps.reduce((s, p) => s + p.base_score, 0), contacts: ps.length, functions: fns,\n    committee: ps.length >= 2 && fns.length >= 2,\n    members: ps.sort((a, b) => b.base_score - a.base_score).map(p => ({ name: p.name, title: p.title, function: p.function, seniority: p.seniority, tier: p.tier, score: p.base_score, stage: p.stage })) };\n}).sort((a, b) => b.score - a.score);\n\n// ---------- anomaly candidates (statistics only; the AI decides what matters) ----------\nconst candidates = [];\nconst todayStr = dayStr(today);\naccounts.forEach(a => {\n  const counts = days.map(d => accMap[a.key].reduce((s, p) => s + p.log.filter(e => e.d === d).length, 0));\n  const prior = counts.slice(0, -1), mean = prior.reduce((s, x) => s + x, 0) / prior.length;\n  const sd = Math.sqrt(prior.reduce((s, x) => s + (x - mean) ** 2, 0) / prior.length) || 0.5;\n  const z = (counts[counts.length - 1] - mean) / sd;\n  const activeToday = accMap[a.key].filter(p => p.log.some(e => e.d === todayStr)).length;\n  if (z >= 2.5 && counts[counts.length - 1] >= 4) candidates.push({ type: 'account_spike', account: a.name, actions_today: counts[counts.length - 1], baseline_per_day: +mean.toFixed(2), z: +z.toFixed(1), people_active_today: activeToday, contacts: a.contacts });\n});\npeople.filter(p => p.attendance === 'attended' && p.tier === 'A' && (stageRank[p.stage] ?? -1) >= 2 && p.signals.opens + p.signals.clicks + p.signals.page_views + p.signals.form_fills === 0)\n  .forEach(p => candidates.push({ type: 'silent_high_fit', contact: p.name, title: p.title, company: p.company, minutes: p.minutes, questions: p.questions, actions_since_event: 0 }));\npeople.filter(p => p.attendance === 'no_show' && p.signals.clicks + p.signals.page_views + p.signals.form_fills >= 3)\n  .forEach(p => candidates.push({ type: 'no_show_high_intent', contact: p.name, title: p.title, company: p.company, pricing_views: p.signals.pricing_views, form_fills: p.signals.form_fills, actions_since_event: p.signals.clicks + p.signals.page_views + p.signals.form_fills }));\nconst todayTotal = timeline[timeline.length - 1], prev = timeline.slice(0, -1);\nconst prevAvg = prev.reduce((s, t) => s + t.open + t.click + t.page_view + t.form_fill, 0) / prev.length;\nconst todaySum = todayTotal.open + todayTotal.click + todayTotal.page_view + todayTotal.form_fill;\n\nconst top = [...people].sort((a, b) => b.base_score - a.base_score).slice(0, 12).map(({ log, ...p }) => p);\nreturn [{ json: {\n  event: EVENT, generated_at: new Date().toISOString(), seeded: people.some(p => p.seeded),\n  kpis, funnel, movement, timeline, engagement_today: todaySum, engagement_prev_avg: +prevAvg.toFixed(1),\n  accounts: accounts.slice(0, 8), top_contacts: top, candidates,\n} }];\n"
+      },
+      "id": "e8147792-b2b8-50a4-876a-4e1673a9668b"
+    },
+    {
+      "name": "Build AI prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M4 AI layer request: DeepSeek judges the statistical anomaly candidates, adjusts interest scores for the\n// top contacts (with a reason each) and writes the narrative (incl. stage movement over 7/14/30 days).\n\nconst m = $json;\nconst compact = {\n  event: m.event, kpis: m.kpis, funnel: m.funnel,\n  lifecycle_stage_entries: Object.fromEntries(m.movement.map(r => [`last_${r.window}_days`, { new_leads: r.lead, new_mqls: r.marketingqualifiedlead, new_sqls: r.salesqualifiedlead }])),\n  engagement_today: m.engagement_today, engagement_prev_daily_avg: m.engagement_prev_avg,\n  anomaly_candidates: m.candidates,\n  top_accounts: m.accounts.slice(0, 6).map(a => ({ name: a.name, score: a.score, contacts: a.contacts, functions: a.functions, buying_committee: a.committee,\n    members: a.members.map(x => `${x.name} (${x.title || x.function}, ${x.seniority}, tier ${x.tier}, score ${x.score}, ${x.stage})`) })),\n  top_contacts: m.top_contacts.map(p => ({ id: p.id, name: p.name, title: p.title, company: p.company, tier: p.tier, stage: p.stage,\n    attendance: p.attendance, minutes: p.minutes, questions: p.questions, base_score: p.base_score, signals: p.signals })),\n};\n\nconst system = `You are a revenue-operations analyst reviewing post-webinar lead data for an enterprise HR-tech company.\nUse ONLY the numbers provided. Return ONLY valid JSON (inside string values never use the \" character; use ' instead):\n{\n \"headline\": \"one sentence, the single most important takeaway, max 20 words\",\n \"narrative\": \"5-6 sentences for a sales leader: conversion, lifecycle stage movement over the last 7, 14 and 30 days (use lifecycle_stage_entries exactly: e.g. 'in the last 7 days X new leads, Y new MQLs and Z new SQLs'), where intent is concentrated, and what to do next\",\n \"anomalies\": [ { \"title\": \"max 8 words\", \"severity\": \"high | medium | low\", \"type\": \"account_spike | silent_high_fit | no_show_high_intent | other\",\n                  \"explanation\": \"1-2 sentences citing the numbers\", \"who\": \"account or contact\", \"action\": \"one concrete next step for the SDR\" } ],\n \"score_adjustments\": [ { \"id\": \"contact id\", \"delta\": \"integer from -15 to 15\", \"reason\": \"max 18 words, cites the signal\" } ]\n}\nRules:\n- anomalies: judge each candidate; keep the ones that matter, order by severity. ONE anomaly per person or account: if a spike is driven by one person who is also a candidate, report it once (as that person's anomaly). You may add at most one 'other' anomaly only if the numbers clearly show it.\n- score_adjustments: one entry per top contact. Raise for buying signals (demo request, pricing views, several people from one account), lower for fading interest or poor fit. The base score is a formula; you add judgement.\n- Never invent people, accounts or numbers.`;\n\nreturn [{ json: { metrics: m, request_body: {\n  model: 'deepseek-v4-pro', thinking: { type: 'disabled' }, temperature: 0.3, max_tokens: 3000, response_format: { type: 'json_object' },\n  messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(compact) }],\n} } }];\n"
+      },
+      "id": "071af14e-ad50-52b4-a5da-df5f141387e5"
+    },
+    {
+      "name": "DeepSeek: analyse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request_body) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "4cd3e260-1413-514b-b292-40287ebd00a7"
+    },
+    {
+      "name": "Merge AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Tolerant JSON parse of a DeepSeek reply: strips ``` fences and repairs the two common breakages\n// (raw line breaks and stray double quotes inside string values) with a small character scanner.\nconst parseAI = (resp, what) => {\n  const c = resp && resp.choices && resp.choices[0];\n  if (!c) throw new Error(`${what}: DeepSeek returned no answer: ${JSON.stringify(resp).slice(0, 300)}`);\n  const t = String((c.message && c.message.content) || '').trim().replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '');\n  const raw = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);\n  try { return JSON.parse(raw); } catch (e1) {}\n  // common LLM slips: bare hashtags in arrays, trailing commas\n  const raw2 = raw.replace(/([\\[,]\\s*)(#[A-Za-z0-9_]+)\"?(?=\\s*[,\\]])/g, '$1\"$2\"')   // bare hashtags\n    .replace(/,(\\s*[}\\]])/g, '$1');                                                    // trailing commas\n  try { return JSON.parse(raw2); } catch (e2) {}\n  let out = '', inStr = false;\n  for (let i = 0; i < raw2.length; i++) {\n    const ch = raw2[i];\n    if (!inStr) { out += ch; if (ch === '\"') inStr = true; continue; }\n    if (ch === '\\\\') { out += ch + (raw2[i + 1] || ''); i++; continue; }\n    if (ch === '\\n') { out += '\\\\n'; continue; }\n    if (ch === '\\r' || ch === '\\t') { out += ch === '\\t' ? '\\\\t' : ''; continue; }\n    if (ch === '\"') {\n      let j = i + 1; while (j < raw2.length && /\\s/.test(raw2[j])) j++;\n      if (j >= raw2.length || ',}]:'.includes(raw2[j])) { out += ch; inStr = false; } else out += '\\\\\"';\n      continue;\n    }\n    out += ch;\n  }\n  try { return JSON.parse(out); }\n  catch (e) { throw new Error(`${what}: invalid JSON (finish_reason=${c.finish_reason}, ${t.length} chars). Starts: ${t.slice(0, 160)}`); }\n};\n\n// Hub · M4: apply the AI layer: validated score adjustments (clamped to ±15), anomalies, narrative.\n// A number guard flags any number in the narrative that isn't in the metrics.\nconst m = $('Build AI prompt').first().json.metrics;\nlet ai = {}, aiError = '';\ntry { ai = parseAI($json, 'M4 analysis'); } catch (e) { aiError = e.message.slice(0, 200); }\n\nconst adj = {};\n(Array.isArray(ai.score_adjustments) ? ai.score_adjustments : []).forEach(a => {\n  const d = Math.max(-15, Math.min(15, Math.round(Number(a.delta) || 0)));\n  if (a.id) adj[String(a.id)] = { delta: d, reason: String(a.reason || '').slice(0, 160) };\n});\nconst top_contacts = m.top_contacts.map(p => {\n  const a = adj[p.id] || { delta: 0, reason: '' };\n  return { ...p, ai_delta: a.delta, ai_reason: a.reason, interest_score: Math.max(0, Math.min(100, p.base_score + a.delta)) };\n}).sort((x, y) => y.interest_score - x.interest_score);\n\nconst known = new Set(JSON.stringify(m).match(/\\d+(\\.\\d+)?/g) || []);\nconst narrative = String(ai.narrative || '');\nconst unknownNumbers = (narrative.match(/\\d+(\\.\\d+)?/g) || []).filter(n => !known.has(n) && !['7', '14', '30'].includes(n));\nconst sev = { high: 0, medium: 1, low: 2 };\nconst anomalies = (Array.isArray(ai.anomalies) ? ai.anomalies : []).filter(a => a && a.title)\n  .sort((a, b) => (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3));\n\nreturn [{ json: {\n  generated_at: new Date().toISOString(), model: 'deepseek-v4-pro',\n  headline: ai.headline || '', narrative, anomalies, top_contacts,\n  checks: { unknown_numbers_in_narrative: unknownNumbers, ai_error: aiError, adjustments_applied: Object.keys(adj).length },\n} }];\n"
+      },
+      "id": "08d313e3-04ef-53f5-a2d2-46aff1a6a1dd"
+    },
+    {
+      "name": "Return M4 AI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "db11d8c8-0d03-5d33-82fa-6ae9dd839fa5"
+    },
+    {
+      "name": "M1 data request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "webhookId": "f7470d6d-20b5-54bf-ac17-c543be214aed",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-m1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "45c01e72-5517-5571-9dd2-3722825e3a57"
+    },
+    {
+      "name": "M1 contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 200, \"properties\": [\"firstname\", \"lastname\", \"email\", \"jobtitle\", \"company\", \"country\", \"event_name\", \"event_attendance_status\", \"time_in_session_min\", \"questions_asked\", \"lifecyclestage\", \"hubspot_owner_id\", \"job_function\", \"seniority\", \"company_industry\", \"company_size_band\", \"icp_tier\", \"icp_score\", \"icp_reason\", \"region\", \"dedupe_status\", \"dedupe_reason\", \"data_completeness_pct\", \"data_completeness_before_pct\", \"fields_missing_before\", \"inferred_fields\", \"enrichment_source\", \"company_size_band\", \"icp_score\", \"icp_reason\", \"hubspot_owner_id\", \"inferred_fields\"], \"filterGroups\": [{\"filters\": [{\"propertyName\": \"event_name\", \"operator\": \"EQ\", \"value\": \"Darwinbox Cortex and the AI-Native Era of HCM\"}]}]}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "680a1a79-6b28-52ad-adca-df76f7edd5ef"
+    },
+    {
+      "name": "M1 data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M1 page data: completeness before vs after, dedupe decisions, tiers, routing, SDR handoff, CSV rows.\n\nconst FIELDS = ['firstname', 'lastname', 'email', 'jobtitle', 'company', 'country', 'job_function', 'seniority',\n  'company_industry', 'company_size_band', 'icp_tier', 'region', 'hubspot_owner_id', 'lifecyclestage'];\nconst LABEL = { firstname: 'First name', lastname: 'Last name', email: 'Email', jobtitle: 'Job title', company: 'Company',\n  country: 'Country', job_function: 'Job function', seniority: 'Seniority', company_industry: 'Industry',\n  company_size_band: 'Company size', icp_tier: 'ICP tier', region: 'Region', hubspot_owner_id: 'Owner', lifecyclestage: 'Lifecycle stage' };\nconst OWNER = { '169348475': 'Neha · Senior SDR', '169348477': 'Priya · India SDR', '169348476': 'Aman · SEA/MEA SDR', '100973776': 'Rahul · speakers' };\nconst has = v => v !== undefined && v !== null && v !== '' && v !== 'Unknown';\nconst parse = (s, fb) => { try { return JSON.parse(s || ''); } catch (e) { return fb; } };\n\nconst contacts = $input.all().flatMap(i => i.json.results || []).map(r => ({ id: r.id, ...r.properties }));\nconst n = contacts.length || 1;\nconst fields = FIELDS.map(f => ({\n  field: LABEL[f],\n  before: Math.round(100 * contacts.filter(c => !parse(c.fields_missing_before, FIELDS).includes(f)).length / n),\n  after: Math.round(100 * contacts.filter(c => has(c[f])).length / n),\n}));\nconst avg = k => Math.round(fields.reduce((s, r) => s + r[k], 0) / fields.length);\nconst count = (k, v) => contacts.filter(c => c[k] === v).length;\nconst scored = contacts.filter(c => c.event_attendance_status !== 'speaker');\nconst owners = {};\ncontacts.forEach(c => { const o = OWNER[c.hubspot_owner_id] || 'Unassigned'; owners[o] = (owners[o] || 0) + 1; });\nconst regions = {};\nscored.forEach(c => { regions[c.region || 'row'] = (regions[c.region || 'row'] || 0) + 1; });\nconst person = c => ({ id: c.id, name: `${c.firstname || ''} ${c.lastname || ''}`.trim(), title: c.jobtitle, company: c.company,\n  function: c.job_function, seniority: c.seniority, industry: c.company_industry, size: c.company_size_band, country: c.country,\n  tier: (c.icp_tier || '').toUpperCase(), score: Number(c.icp_score || 0), reason: (c.icp_reason || '').replace(/^[ABC] \\([^)]*\\)\\.\\s*/, ''),\n  owner: OWNER[c.hubspot_owner_id] || '', stage: c.lifecyclestage, dedupe: c.dedupe_status, dedupe_reason: c.dedupe_reason,\n  inferred: parse(c.inferred_fields, []).length, source: c.enrichment_source });\n\nreturn [{ json: {\n  generated_at: new Date().toISOString(),\n  kpis: { contacts: contacts.length, before: avg('before'), after: avg('after'), merged: count('dedupe_status', 'merged'),\n          review: count('dedupe_status', 'needs_review'), tier_a: count('icp_tier', 'a'), tier_b: count('icp_tier', 'b'), tier_c: count('icp_tier', 'c'),\n          mqls: contacts.filter(c => ['marketingqualifiedlead', 'salesqualifiedlead'].includes(c.lifecyclestage)).length,\n          inferred_values: contacts.reduce((s, c) => s + parse(c.inferred_fields, []).length, 0) },\n  fields, owners, regions,\n  handoff: scored.filter(c => ['marketingqualifiedlead', 'salesqualifiedlead'].includes(c.lifecyclestage) || c.icp_tier === 'a')\n    .sort((a, b) => Number(b.icp_score) - Number(a.icp_score)).map(person),\n  dedupe: contacts.filter(c => ['merged', 'needs_review'].includes(c.dedupe_status)).map(person),\n  rows: contacts.map(person),\n} }];\n"
+      },
+      "id": "304ed823-dafa-5095-a613-a58aae99399d"
+    },
+    {
+      "name": "Return M1 data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "2c27ac67-49dc-5d74-ba21-e42e51b320db"
+    },
+    {
+      "name": "M2 data request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "webhookId": "f4a951c4-0802-5735-9ee8-abe00de8e625",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-m2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "155d5489-1447-5477-a5b3-b08a9cb28207"
+    },
+    {
+      "name": "M2 emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.hubapi.com/marketing/v3/emails?limit=100&includeStats=true&sort=-createdAt",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "f000142e-71aa-50f4-b611-baf03545b0a8"
+    },
+    {
+      "name": "M2 contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"limit\": 200, \"properties\": [\"firstname\", \"lastname\", \"pe_subject\", \"postevent_email_variant\", \"pe_opening_line\", \"utm_campaign_postevent\", \"pe_recording_url\"], \"filterGroups\": [{\"filters\": [{\"propertyName\": \"event_name\", \"operator\": \"EQ\", \"value\": \"Darwinbox Cortex and the AI-Native Era of HCM\"}]}]}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "id": "89b1b687-9de9-599c-aa03-baa84463500f"
+    },
+    {
+      "name": "M2 data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        800
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M2 page data: the latest post-event send (3 segment emails) with HubSpot stats, subject variants and UTMs.\n\nconst EVENT = 'Darwinbox Cortex and the AI-Native Era of HCM';\nconst emails = ($('M2 emails').first().json.results || [])\n  .filter(e => String(e.name || '').startsWith(EVENT.slice(0, 40)) && e.state !== 'DRAFT' && / · m2-\\d+$/.test(e.name || ''));\n// latest run id among sent emails\nconst runs = [...new Set(emails.map(e => e.name.split(' · ').pop()))].sort();\nconst run = runs[runs.length - 1];\nconst latest = emails.filter(e => e.name.endsWith(run));\nconst contacts = $input.all().flatMap(i => i.json.results || []).map(r => r.properties);\nconst SEG = { 'Attendees: thank-you': 'attendee', 'No-shows: catch-up': 'no_show', 'Speakers: thank-you': 'speaker' };\n\nconst segments = latest.map(e => {\n  const label = e.name.split(' · ')[1];\n  const seg = SEG[label];\n  const c = (e.stats && e.stats.counters) || {};\n  const mine = contacts.filter(x => String(x.postevent_email_variant || '').startsWith(seg + '_'));\n  const subjects = {};\n  mine.forEach(x => { const v = x.postevent_email_variant.split('_')[seg === 'no_show' ? 2 : 1]; subjects[v] = subjects[v] || { variant: v, subject: x.pe_subject, contacts: 0 }; subjects[v].contacts++; });\n  const personas = {};\n  mine.forEach(x => { const p = x.postevent_email_variant.split('_').slice(seg === 'no_show' ? 3 : 2).join('_'); personas[p] = (personas[p] || 0) + 1; });\n  return { label, segment: seg, email_id: e.id, state: e.state, published: e.publishDate,\n    recipients: mine.length, sent: c.sent || 0, delivered: c.delivered || 0, opens: c.open || 0, clicks: c.click || 0,\n    dropped: c.dropped || 0, bounced: c.bounce || 0,\n    subjects: Object.values(subjects).sort((a, b) => a.variant.localeCompare(b.variant)), personas,\n    sample_opening_line: (mine.find(x => x.pe_opening_line) || {}).pe_opening_line || '' };\n}).sort((a, b) => ['attendee', 'no_show', 'speaker'].indexOf(a.segment) - ['attendee', 'no_show', 'speaker'].indexOf(b.segment));\n\nconst utm = (contacts.find(x => x.utm_campaign_postevent) || {}).utm_campaign_postevent || '';\nconst sample = (contacts.find(x => x.pe_recording_url) || {}).pe_recording_url || '';\nreturn [{ json: {\n  generated_at: new Date().toISOString(), run_id: run || null, sent_at: latest[0] ? latest[0].publishDate : null,\n  utm_campaign: utm, sample_tracked_link: sample, segments,\n  totals: segments.reduce((t, s) => ({ recipients: t.recipients + s.recipients, sent: t.sent + s.sent, delivered: t.delivered + s.delivered,\n    opens: t.opens + s.opens, clicks: t.clicks + s.clicks, dropped: t.dropped + s.dropped }), { recipients: 0, sent: 0, delivered: 0, opens: 0, clicks: 0, dropped: 0 }),\n  note: 'HubSpot developer test accounts only deliver to users of the account; other sends are logged as dropped. A paid Marketing Hub account delivers to everyone.',\n} }];\n"
+      },
+      "id": "eef4b7ef-72e7-52db-a416-cf8a6e981a4b"
+    },
+    {
+      "name": "Return M2 data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b192fdb2-8eba-500d-a035-1b7fa444c71e"
+    },
+    {
+      "name": "M3 data request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1000
+      ],
+      "webhookId": "32c0ab69-b10a-5df7-9e36-308d38751426",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-m3",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "daeeec0b-3062-531c-a47c-dc9c173f3564"
+    },
+    {
+      "name": "Find latest package",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1000
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/drive/v3/files?q=mimeType%3D%27application/vnd.google-apps.folder%27%20and%20trashed%3Dfalse%20and%20name%20contains%20%27Events%27&orderBy=createdTime%20desc&pageSize=5&fields=files(id,name,createdTime)",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {}
+      },
+      "id": "afd02149-e9f9-5626-a49c-2dacac3313da"
+    },
+    {
+      "name": "List package files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1000
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(String.fromCharCode(39) + $json.files[0].id + String.fromCharCode(39) + ' in parents and trashed=false') + '&pageSize=50&fields=files(id,name,mimeType,webViewLink,createdTime)' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {}
+      },
+      "id": "433b3e95-602d-54ce-820c-c0a791b67137"
+    },
+    {
+      "name": "Export README",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1000
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + ($json.files.find(f => /00 README/.test(f.name)) || $json.files[0]).id + '/export?mimeType=text/plain' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "3da77ca1-277e-517c-8563-32d7b10e6d47"
+    },
+    {
+      "name": "M3 data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "// Hub · M3 page data: the latest content package in Google Drive (files, links, image previews, QA checks from the README).\n\nconst folder = ($('Find latest package').first().json.files || [])[0];\nif (!folder) return [{ json: { found: false } }];\nconst files = ($('List package files').first().json.files || []).map(f => {\n  const clean = String(f.name).replace(/^\\[[^\\]]+\\]\\s*/, '');\n  const kind = /\\.png$|\\.jpg$/i.test(f.name) ? 'image' : /\\.html$/i.test(f.name) ? 'html' : /skipped/.test(f.name) ? 'note' : 'doc';\n  return { id: f.id, name: clean, kind, mime: f.mimeType, url: f.webViewLink, preview: kind === 'image' ? `hub-img?id=${f.id}` : null, created: f.createdTime };\n}).sort((a, b) => a.name.localeCompare(b.name));\n\nconst readme = String($json.data || $json || '');\nconst checks = readme.split('\\n').map(l => l.trim()).filter(l => /^[-*•]?\\s*\\**(PASS|CHECK)\\**:/.test(l.replace(/^[-*•]\\s*/, '')))\n  .map(l => { const t = l.replace(/^[-*•]\\s*/, '').replace(/\\*\\*/g, ''); return { pass: t.startsWith('PASS'), text: t.replace(/^(PASS|CHECK):\\s*/, '') }; });\nconst counts = (readme.match(/Blog \\d+ words[^\\n]*/) || [''])[0];\nconst guard = (readme.match(/Insights [^\\n]*verified[^\\n]*/) || [''])[0];\nconst chapters = (readme.match(/AI chapters matched[^\\n]*/) || [''])[0];\n\nreturn [{ json: {\n  found: true, generated_at: new Date().toISOString(),\n  folder: { id: folder.id, name: folder.name, url: `https://drive.google.com/drive/folders/${folder.id}`, created: folder.createdTime },\n  images: files.filter(f => f.kind === 'image'), docs: files.filter(f => f.kind !== 'image'),\n  checks, counts, guard, chapters,\n} }];\n"
+      },
+      "id": "aa222f1e-9f85-5820-b8fd-0a33d6f58447"
+    },
+    {
+      "name": "Return M3 data",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        1000
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "4da535ba-064f-5139-9b6a-186c67bfb6de"
+    },
+    {
+      "name": "Image request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1200
+      ],
+      "webhookId": "58e57b33-371a-5917-857f-e487e79d55a3",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hub-img",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4dca8397-cc54-534f-b4a6-0888b252b166"
+    },
+    {
+      "name": "Image metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent($json.query.id) + '?fields=id,name,mimeType' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {}
+      },
+      "id": "68701d11-01b2-5878-a564-e5ff26f8cfd0"
+    },
+    {
+      "name": "Images from packages only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "// Only serve images that belong to a content package (tagged file names), never any other Drive file.\nif (!String($json.mimeType || '').startsWith('image/') || !String($json.name || '').startsWith('[')) throw new Error('Not a content-package image');\nreturn [{ json: { id: $json.id } }];"
+      },
+      "id": "717c9829-1b7b-545c-9f68-ffc748eb4691"
+    },
+    {
+      "name": "Download image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.id + '?alt=media' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "b0591f22-16c5-5050-bfee-8c787d10f56b"
+    },
+    {
+      "name": "Return image",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        1200
+      ],
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "public, max-age=3600"
+              }
+            ]
+          }
+        }
+      },
+      "id": "499414d8-167e-5a4e-9b17-a364ebee3aac"
+    }
+  ],
+  "connections": {
+    "Hub page": {
+      "main": [
+        [
+          {
+            "node": "Return hub page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 data request": {
+      "main": [
+        [
+          {
+            "node": "M4 contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 contacts": {
+      "main": [
+        [
+          {
+            "node": "M4 metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 metrics": {
+      "main": [
+        [
+          {
+            "node": "Return M4 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 AI request": {
+      "main": [
+        [
+          {
+            "node": "M4 AI contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 AI contacts": {
+      "main": [
+        [
+          {
+            "node": "M4 AI metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M4 AI metrics": {
+      "main": [
+        [
+          {
+            "node": "Build AI prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI prompt": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek: analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek: analyse": {
+      "main": [
+        [
+          {
+            "node": "Merge AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge AI": {
+      "main": [
+        [
+          {
+            "node": "Return M4 AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M1 data request": {
+      "main": [
+        [
+          {
+            "node": "M1 contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M1 contacts": {
+      "main": [
+        [
+          {
+            "node": "M1 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M1 data": {
+      "main": [
+        [
+          {
+            "node": "Return M1 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M2 data request": {
+      "main": [
+        [
+          {
+            "node": "M2 emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M2 emails": {
+      "main": [
+        [
+          {
+            "node": "M2 contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M2 contacts": {
+      "main": [
+        [
+          {
+            "node": "M2 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M2 data": {
+      "main": [
+        [
+          {
+            "node": "Return M2 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M3 data request": {
+      "main": [
+        [
+          {
+            "node": "Find latest package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find latest package": {
+      "main": [
+        [
+          {
+            "node": "List package files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List package files": {
+      "main": [
+        [
+          {
+            "node": "Export README",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export README": {
+      "main": [
+        [
+          {
+            "node": "M3 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M3 data": {
+      "main": [
+        [
+          {
+            "node": "Return M3 data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image request": {
+      "main": [
+        [
+          {
+            "node": "Image metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image metadata": {
+      "main": [
+        [
+          {
+            "node": "Images from packages only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Images from packages only": {
+      "main": [
+        [
+          {
+            "node": "Download image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download image": {
+      "main": [
+        [
+          {
+            "node": "Return image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

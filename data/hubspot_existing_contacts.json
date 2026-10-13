@@ -1,0 +1,142 @@
+[
+  {
+    "firstname": "Ananya",
+    "lastname": "Rao",
+    "email": "ananya.rao@infosys.com.example.com",
+    "company": "Infosys Limited",
+    "jobtitle": "HR Manager",
+    "lifecyclestage": "lead",
+    "owner": "india",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Vikram",
+    "lastname": "Shetty",
+    "email": "vikram.shetty@tatasteel.com.example.com",
+    "company": "Tata Steel Limited",
+    "jobtitle": "Chief HR Officer",
+    "lifecyclestage": "lead",
+    "owner": "senior",
+    "expect": "CSV has gmail -> fuzzy name+company merge"
+  },
+  {
+    "firstname": "Arjun",
+    "lastname": "Menon",
+    "email": "arjun.menon@wipro.com.example.com",
+    "company": "Wipro",
+    "jobtitle": "HRIS Manager",
+    "lifecyclestage": "subscriber",
+    "owner": "india",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Rahul",
+    "lastname": "Sharma",
+    "email": "rahul.sharma@hdfcbank.com.example.com",
+    "company": "HDFC Bank",
+    "jobtitle": "HRBP",
+    "lifecyclestage": "lead",
+    "owner": "india",
+    "expect": "HDFC row exact; Wipro Rahul Sharma must NOT merge"
+  },
+  {
+    "firstname": "Kavya",
+    "lastname": "Reddy",
+    "email": "kavya.reddy@swiggy.com.example.com",
+    "company": "Swiggy",
+    "jobtitle": "VP People",
+    "lifecyclestage": "lead",
+    "owner": "senior",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Sneha",
+    "lastname": "Kulkarni",
+    "email": "sneha.k@nykaa.com.example.com",
+    "company": "Nykaa E-Retail",
+    "jobtitle": "CPO",
+    "lifecyclestage": "subscriber",
+    "owner": "india",
+    "expect": "different email -> fuzzy name+company merge"
+  },
+  {
+    "firstname": "Maria",
+    "lastname": "Santos",
+    "email": "maria.santos@globe.com.ph.example.com",
+    "company": "Globe Telecom Inc",
+    "jobtitle": "Chief Human Resources Officer",
+    "lifecyclestage": "lead",
+    "owner": "sea",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Omar",
+    "lastname": "Haddad",
+    "email": "omar.haddad@majidalfuttaim.com.example.com",
+    "company": "Majid Al Futtaim Holding",
+    "jobtitle": "Group CHRO",
+    "lifecyclestage": "lead",
+    "owner": "senior",
+    "expect": "exact email; the 'Omar Hadad' duplicate row also folds in"
+  },
+  {
+    "firstname": "Jessica",
+    "lastname": "Miller",
+    "email": "jessica.miller@orioninc.com.example.com",
+    "company": "Orion Innovation",
+    "jobtitle": "VP People Ops",
+    "lifecyclestage": "lead",
+    "owner": "senior",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Manish",
+    "lastname": "Agarwal",
+    "email": "manish.agarwal@jsw.in.example.com",
+    "company": "JSW Steel Ltd",
+    "jobtitle": "Head - HRIS",
+    "lifecyclestage": "subscriber",
+    "owner": "india",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Pooja",
+    "lastname": "Nair",
+    "email": "pooja.nair@drreddys.com.example.com",
+    "company": "Dr Reddys",
+    "jobtitle": "TA Specialist",
+    "lifecyclestage": "subscriber",
+    "owner": "india",
+    "expect": "CSV has yahoo -> fuzzy name+company merge"
+  },
+  {
+    "firstname": "Dewi",
+    "lastname": "Lestari",
+    "email": "dewi.lestari@gotocompany.com.example.com",
+    "company": "GoTo",
+    "jobtitle": "Head of People",
+    "lifecyclestage": "lead",
+    "owner": "sea",
+    "expect": "exact email -> update"
+  },
+  {
+    "firstname": "Priya",
+    "lastname": "Das",
+    "email": "priya.das@asianpaints.com.example.com",
+    "company": "Asian Paints",
+    "jobtitle": "L&D Lead",
+    "lifecyclestage": "subscriber",
+    "owner": "india",
+    "expect": "near match to Priyanka Das -> needs review"
+  },
+  {
+    "firstname": "Layla",
+    "lastname": "Mansour",
+    "email": "layla.m@emiratesnbd.com.example.com",
+    "company": "Emirates NBD Bank",
+    "jobtitle": "HR Transformation",
+    "lifecyclestage": "lead",
+    "owner": "sea",
+    "expect": "different email -> fuzzy name+company merge"
+  }
+]

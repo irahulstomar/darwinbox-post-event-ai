@@ -1,0 +1,7 @@
+.env
+credentials.json
+n8n/import/
+tests/out/
+data/recording/
+*.zip
+__pycache__/

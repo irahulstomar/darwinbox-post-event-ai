@@ -1,0 +1,318 @@
+{
+  "name": "MASTER · Run everything (M1 → M3 → M2)",
+  "nodes": [
+    {
+      "name": "Master form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "a9bc33ff-0e28-504c-bf40-87c46e0a3077",
+      "parameters": {
+        "formTitle": "Event closed: run the whole post-event workflow",
+        "formDescription": "One submit runs lead enrichment (M1), the content package (M3) and the post-event emails (M2). The Lead intelligence dashboard (M4) updates live. Takes about 8 minutes; follow progress in the hub.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Event name",
+              "placeholder": "Darwinbox Cortex and the AI-Native Era of HCM",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Registrant export (CSV)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".csv",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Recording file URL",
+              "placeholder": "Direct mp3/mp4/m4a link (Zoom/ON24). Transcribed by Deepgram"
+            },
+            {
+              "fieldLabel": "Transcript (.txt), optional fallback",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".txt"
+            },
+            {
+              "fieldLabel": "Speakers",
+              "placeholder": "Jayant Paleti, Brett Ungashick"
+            },
+            {
+              "fieldLabel": "Watch link for emails",
+              "placeholder": "https://www.youtube.com/watch?v=...",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "CTA link",
+              "placeholder": "https://... (demo / resource page)"
+            },
+            {
+              "fieldLabel": "Official chapters (optional, for QA)",
+              "fieldType": "textarea",
+              "placeholder": "0:00 Intro"
+            },
+            {
+              "fieldLabel": "From name",
+              "placeholder": "Webinar Team"
+            },
+            {
+              "fieldLabel": "Reply-to email",
+              "fieldType": "email"
+            },
+            {
+              "fieldLabel": "Mode",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Create drafts only"
+                  },
+                  {
+                    "option": "Send now via HubSpot"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Running: lead enrichment, content package and emails. Open the hub in about 8 minutes."
+            }
+          }
+        }
+      },
+      "id": "9ecc5944-d8a0-5cd3-878f-0e62e2986eb6"
+    },
+    {
+      "name": "Inputs for M1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Hand each module exactly the inputs (and file) its own form would have given it.\nconst f = $('Master form').first();\nconst bin = f.binary || {};\nconst keyFor = re => Object.keys(bin).find(k => re.test(k)) || null;\nconst csvKey = keyFor(/registrant|csv/i), trKey = keyFor(/transcript/i);\nconst j = f.json;\nconst module = 'm1';\nconst json = module === 'm1' ? { 'Event name': j['Event name'] }\n  : module === 'm3' ? { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Speakers': j['Speakers'] || '',\n                        'Watch link': j['Watch link for emails'] || '', 'Official chapters (optional, for QA)': j['Official chapters (optional, for QA)'] || '' }\n  : { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Watch link for emails': j['Watch link for emails'] || '',\n      'CTA link': j['CTA link'] || '', 'From name': j['From name'] || 'Webinar Team', 'Reply-to email': j['Reply-to email'] || '', 'Mode': j['Mode'] };\nconst key = module === 'm1' ? csvKey : trKey;\nif (module === 'm1' && !key) throw new Error('Upload the registrant CSV');\nreturn [{ json, ...(key ? { binary: { data: bin[key] } } : {}) }];"
+      },
+      "id": "66c6a9fe-b7ed-5e71-a046-19e06d0756d0"
+    },
+    {
+      "name": "Run M1 · Lead enrichment",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "7c3081a4-85a9-59d5-a428-7a6ff47ab7c3"
+    },
+    {
+      "name": "Wait for Clay + DeepSeek enrichment",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "webhookId": "eb440525-58a7-5fd1-bb7f-f55487b4b788",
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "447586fd-5d44-586b-814d-5fa8a50e26af"
+    },
+    {
+      "name": "Inputs for M3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Hand each module exactly the inputs (and file) its own form would have given it.\nconst f = $('Master form').first();\nconst bin = f.binary || {};\nconst keyFor = re => Object.keys(bin).find(k => re.test(k)) || null;\nconst csvKey = keyFor(/registrant|csv/i), trKey = keyFor(/transcript/i);\nconst j = f.json;\nconst module = 'm3';\nconst json = module === 'm1' ? { 'Event name': j['Event name'] }\n  : module === 'm3' ? { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Speakers': j['Speakers'] || '',\n                        'Watch link': j['Watch link for emails'] || '', 'Official chapters (optional, for QA)': j['Official chapters (optional, for QA)'] || '' }\n  : { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Watch link for emails': j['Watch link for emails'] || '',\n      'CTA link': j['CTA link'] || '', 'From name': j['From name'] || 'Webinar Team', 'Reply-to email': j['Reply-to email'] || '', 'Mode': j['Mode'] };\nconst key = module === 'm1' ? csvKey : trKey;\nif (module === 'm1' && !key) throw new Error('Upload the registrant CSV');\nreturn [{ json, ...(key ? { binary: { data: bin[key] } } : {}) }];"
+      },
+      "id": "46cd774e-9751-5071-8952-855e3fafadb2"
+    },
+    {
+      "name": "Run M3 · Content package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "faed78c6-d15d-5e1b-9a81-ecf284b4ce80"
+    },
+    {
+      "name": "Inputs for M2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Hand each module exactly the inputs (and file) its own form would have given it.\nconst f = $('Master form').first();\nconst bin = f.binary || {};\nconst keyFor = re => Object.keys(bin).find(k => re.test(k)) || null;\nconst csvKey = keyFor(/registrant|csv/i), trKey = keyFor(/transcript/i);\nconst j = f.json;\nconst module = 'm2';\nconst json = module === 'm1' ? { 'Event name': j['Event name'] }\n  : module === 'm3' ? { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Speakers': j['Speakers'] || '',\n                        'Watch link': j['Watch link for emails'] || '', 'Official chapters (optional, for QA)': j['Official chapters (optional, for QA)'] || '' }\n  : { 'Event name': j['Event name'], 'Recording file URL': j['Recording file URL'] || '', 'Watch link for emails': j['Watch link for emails'] || '',\n      'CTA link': j['CTA link'] || '', 'From name': j['From name'] || 'Webinar Team', 'Reply-to email': j['Reply-to email'] || '', 'Mode': j['Mode'] };\nconst key = module === 'm1' ? csvKey : trKey;\nif (module === 'm1' && !key) throw new Error('Upload the registrant CSV');\nreturn [{ json, ...(key ? { binary: { data: bin[key] } } : {}) }];"
+      },
+      "id": "f84df598-94a1-5ed2-b4cc-819079515c19"
+    },
+    {
+      "name": "Run M2 · Post-event emails",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "008826c3-9521-53e7-acda-0d01b5d6d02a"
+    },
+    {
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {},
+      "id": "e4510caa-a326-51bc-bed4-c2dafb6e8edb"
+    }
+  ],
+  "connections": {
+    "Master form": {
+      "main": [
+        [
+          {
+            "node": "Inputs for M1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inputs for M1": {
+      "main": [
+        [
+          {
+            "node": "Run M1 · Lead enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run M1 · Lead enrichment": {
+      "main": [
+        [
+          {
+            "node": "Wait for Clay + DeepSeek enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Clay + DeepSeek enrichment": {
+      "main": [
+        [
+          {
+            "node": "Inputs for M3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inputs for M3": {
+      "main": [
+        [
+          {
+            "node": "Run M3 · Content package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run M3 · Content package": {
+      "main": [
+        [
+          {
+            "node": "Inputs for M2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inputs for M2": {
+      "main": [
+        [
+          {
+            "node": "Run M2 · Post-event emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run M2 · Post-event emails": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
