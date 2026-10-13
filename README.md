@@ -24,7 +24,7 @@ n8n/build_workflows.py  Assembles the workflow JSON from the code files
 scripts/              HubSpot setup: custom properties, seed CRM contacts, seed engagement history, replay enrichment
 tests/                Local harnesses that run the Code nodes against real APIs (no sending)
 data/                 Synthetic registrant export (real companies, fake people, .example.com emails) and CRM seed
-docs/                 Submission PDF, its HTML source and screenshots
+docs/                 Submission PDF, plus the screenshots and AI images used in it
 ```
 
 ## Setup
